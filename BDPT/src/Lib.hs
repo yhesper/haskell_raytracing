@@ -19,9 +19,9 @@ initialState :: Image
 initialState = ()
 
 height :: Int
-height = 3
+height = 25
 width :: Int
-width = 3
+width = 25
 
 data Coord = V2 Int Int
 
@@ -43,7 +43,7 @@ drawPixel Green = withAttr (attrName "green") cw
 drawPixel Blue = withAttr (attrName "blue") cw
 
 cw :: Widget Name
-cw = str "  "
+cw = str "██"
 
 drawUI :: Image -> [Widget Name]
 drawUI im = [drawGrid im]
