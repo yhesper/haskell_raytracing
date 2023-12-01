@@ -15,3 +15,14 @@ The application takes in a scene description containing a camera configuration, 
 
 ## Milestone 2: Updates
 
+### Architecture
+
+our project includes two major key components: A user interface powered by the brick library to display the progression of our rendering algorithm, with a progress bar indicating how much work is to be done and sliders for users to adjust the rendered scene properties (For example users can interactively adjust the material of the object and see the rendering results reflect the changes). The user interface takes image buffers rendered by our bidirectional rendering algorithm and then rasterizes a fixed 25x25 image. The other major component is the bidirectional path tracer, which read our pre-defined scene description, constructs light paths, traces light paths, and finally records the result. The two components have a clear producer-consumer relationship where the path tracer produces the image and the UI consumes it.
+
+### Challenges so far:
+- Designing the UI is challenging. We need to understand brick library's common patterns of building an app, so we spent time reading and learning from brick's official code samples and refined our code to render a demo scene in the command line.
+- We need to design a scene that 1. be able to be rendered by our app. 2. have enough customization options so users can play around with it. We started with the classic cornell box scene (https://www.wikiwand.com/en/Cornell_box), perturbed the geometry and made one of the box metal-ish materials, which allows user to explore both diffuse and specular visual effects.
+- Designing proper ADT for our bidirectional rendering algorithm. BDPT requires an explicit light path data structure, we need to carefully design this in a functional way.
+
+### Do we expect to meet our goals until the deadline?
+So far we expect to meet the goals until the deadline.
