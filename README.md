@@ -11,3 +11,7 @@ The application takes in a scene description containing a camera configuration, 
 - Hesper Yin
 - Wesley Chang
 - Xuanda Yang
+
+
+## Milestone 2: Updates
+
