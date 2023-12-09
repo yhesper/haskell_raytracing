@@ -1,73 +1,78 @@
 module Scene
-    ( bdptApp
+    ( Vector2(..)
+    , Vector3(..)
+    , Ray(..)
+    , Camera(..)
+    , Intersection(..)
+    , Primitive(..)
+    , Sphere(..)
+    , Triangle(..)
+    , Mesh(..)
+    , Scene(..)
     ) where
 
 {-# LANGUAGE OverloadedStrings #-}
 
-import Linear.V3 (V3)
+data Vector2 = Vector2 {
+    u :: Float,
+    v :: Float
+} deriving (Eq, Show)
 
-data Ray = R {
-    origin :: (V3 Float),
-    direction :: (V3 Float)
-}
+data Vector3 = Vector3 {
+    x :: Float,
+    y :: Float,
+    z :: Float
+} deriving (Eq, Show)
 
-data Intersction = I {
-    t   :: Float,
-    prim_idx   :: Int,
-    normal :: (V3 Float),
-    -- bsdf  :: BSDF a
-    color :: (V3 Float)
-}
+data Ray = Ray {
+    origin :: Vector3,
+    direction :: Vector3
+} deriving (Eq, Show)
+
+data Camera = Camera {
+    position :: Vector3,
+    look_at :: Vector3,
+    up :: Vector3,
+    fov :: Float
+} deriving (Eq, Show)
+
+data Intersection = Intersection {
+    t :: Float,
+    prim_idx :: Int,
+    normal :: Vector3,
+    color :: Vector3
+} deriving (Eq, Show)
+
 
 class Primitive a where
-  intersect :: a -> Ray -> Intersction
+  intersect :: a -> Ray -> Intersection
   volume :: a -> Float
   area :: a -> Float
 
 data Sphere = Sphere {
-    center :: (V3 Float),
+    center :: Vector3,
     radius :: Float,
-    sphere_color  :: (V3 Float)
-}
-
-instance Primitive Sphere where
-  intersect s r = I {
-    t = 0,
-    prim_idx = 0,
-    normal = V3 0 0 0,
-    color = V3 0 0 0
-  }
-  volume s = 0
-  area s = 0
+    sphere_color  :: Vector3
+} deriving (Eq, Show)
 
 data Triangle = Triangle {
-    v0 :: (V3 Float),
-    v1 :: (V3 Float),
-    v2 :: (V3 Float),
-    tri_color :: (V3 Float)
-}
-
-instance Primitive Triangle where
-  intersect t r = I {
-    t = 0,
-    prim_idx = 0,
-    normal = V3 0 0 0,
-    color = V3 0 0 0
-  }
-  volume t = 0
-  area t = 0
+    v1 :: Vector3,
+    v2 :: Vector3,
+    v3 :: Vector3,
+    triangle_color :: Vector3
+} deriving (Eq, Show)
 
 data Mesh = Mesh {
-    vertices :: [(V3 Float)],
+    vertices :: [Vector3],
     indices  :: [Int],
-    normals  :: [(V3 Float)],
-    colors   :: [(V3 Float)]
-}
+    normals  :: [Vector3],
+    colors   :: [Vector3]
+} deriving (Eq, Show)
 
--- data Scene = Scene {
---     primitives :: [Primitive]
---     -- lights     :: [Primitive]
--- }
+data Scene = Scene {
+    primitives :: [Sphere]
+    -- lights     :: [Primitive]
+} deriving (Eq, Show)
 
 
 -- trace :: Ray -> Scene -> (V3 Float)
