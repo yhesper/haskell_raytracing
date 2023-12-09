@@ -1,21 +1,22 @@
-module Lib
+module Scene
     ( bdptApp
     ) where
-import Data.Vector.V3
+
 {-# LANGUAGE OverloadedStrings #-}
 
+import Linear.V3 (V3)
 
 data Ray = R {
-    origin :: Vector3,
-    dir  :: Vector3,
+    origin :: (V3 Float),
+    direction :: (V3 Float)
 }
 
 data Intersction = I {
     t   :: Float,
     prim_idx   :: Int,
-    normal :: Vector3,
+    normal :: (V3 Float),
     -- bsdf  :: BSDF a
-    color :: Vector3
+    color :: (V3 Float)
 }
 
 class Primitive a where
@@ -24,53 +25,53 @@ class Primitive a where
   area :: a -> Float
 
 data Sphere = Sphere {
-    center :: Vector3,
+    center :: (V3 Float),
     radius :: Float,
-    color  :: Vector3
+    sphere_color  :: (V3 Float)
 }
 
 instance Primitive Sphere where
   intersect s r = I {
     t = 0,
     prim_idx = 0,
-    normal = Vector3 0 0 0,
-    color = Vector3 0 0 0
+    normal = V3 0 0 0,
+    color = V3 0 0 0
   }
   volume s = 0
   area s = 0
 
 data Triangle = Triangle {
-    v0 :: Vector3,
-    v1 :: Vector3,
-    v2 :: Vector3,
-    color :: Vector3
+    v0 :: (V3 Float),
+    v1 :: (V3 Float),
+    v2 :: (V3 Float),
+    tri_color :: (V3 Float)
 }
 
 instance Primitive Triangle where
   intersect t r = I {
     t = 0,
     prim_idx = 0,
-    normal = Vector3 0 0 0,
-    color = Vector3 0 0 0
+    normal = V3 0 0 0,
+    color = V3 0 0 0
   }
   volume t = 0
   area t = 0
 
-Data Mesh = Mesh {
-    vertices :: [Vector3],
+data Mesh = Mesh {
+    vertices :: [(V3 Float)],
     indices  :: [Int],
-    normals  :: [Vector3],
-    colors   :: [Vector3]
+    normals  :: [(V3 Float)],
+    colors   :: [(V3 Float)]
 }
 
-Data Scene = Scene {
-    primitives :: [Primitive],
-    -- lights     :: [Primitive]
-}
+-- data Scene = Scene {
+--     primitives :: [Primitive]
+--     -- lights     :: [Primitive]
+-- }
 
 
-trace :: Ray -> Scene -> Vector3
-trace r s = Vector3 0 0 0
+-- trace :: Ray -> Scene -> (V3 Float)
+-- trace r s = V3 0 0 0
 
 -- do this later
 -- class BSDF a where 
