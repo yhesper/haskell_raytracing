@@ -6,12 +6,15 @@ module Scene
     , Sphere(..)
     , Triangle(..)
     , Mesh(..)
-    , Scene(..)
+    , Scene(..),
+    render,
+    test1
     ) where
 
 {-# LANGUAGE OverloadedStrings #-}
 
 import Linear.V3
+import GHC.Real (fromIntegral)
 
 -- data Vector2 = Vector2 {
 --     u :: Float,
@@ -119,7 +122,6 @@ data Scene = Scene {
 test1 :: Scene
 test1 = Scene [Sphere (V3 1 1 0) 1 (V3 1 0 0), Sphere (V3 0 0 0) 1 (V3 0 1 0), Sphere (V3 2 0 0) 1 (V3 0 0 1)]
 
-
 traceRayPrimal :: Ray -> Scene -> Maybe Intersection
 traceRayPrimal r s =
   let
@@ -130,3 +132,26 @@ traceRayPrimal r s =
       Just (minimum valid_intersections)
     else
       Nothing
+
+render :: Scene -> Int -> Int -> [V3 Float]
+render s w h =
+  let   
+    aspect_ratio = (fromIntegral w) / (fromIntegral h) :: Float
+    viewport_height = 2.0 :: Float
+    viewport_width = viewport_height * aspect_ratio
+    focal_length = 1.0
+    camera_center = V3 0.0 0.0 0.0 :: V3 Float
+    viewport_upper_left = camera_center - (V3 (viewport_width / 2) (viewport_height / 2) focal_length)
+    pixel00_loc = viewport_upper_left + (V3 (viewport_width / (fromIntegral w)) 0 0) + (V3 0 (viewport_height / (fromIntegral h)) 0)
+    pixel_delta_u = (viewport_width / (fromIntegral w))
+    pixel_delta_v = (viewport_height / (fromIntegral h))
+  in
+    do
+      x <- [0..w]
+      y <- [0..h]
+      let pixel_loc = pixel00_loc + (V3 (pixel_delta_u * (fromIntegral x)) (pixel_delta_v * (fromIntegral y)) 0)
+      let ray = Ray camera_center (pixel_loc - camera_center)
+      case traceRayPrimal ray s of
+        Just i -> [color i]
+        Nothing -> [V3 0 0 0]
+
