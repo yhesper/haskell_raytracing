@@ -34,6 +34,12 @@ v3Times (V3 x y z) s = V3 (x * s) (y * s) (z * s)
 
 v3Dot (V3 x1 y1 z1) (V3 x2 y2 z2) = x1 * x2 + y1 * y2 + z1 * z2
 
+v3Norm :: V3 Float -> Float
+v3Norm (V3 x y z) = sqrt (x*x + y*y + z*z)
+
+v3Normalize :: V3 Float -> V3 Float
+v3Normalize v = v `v3Div` (v3Norm v)
+
 data Ray = Ray {
     origin :: V3 Float,
     direction :: V3 Float
@@ -75,18 +81,26 @@ instance Primitive Sphere where
       tca = l `v3Dot` (direction r)
       d2 = (l `v3Dot` l) - (tca * tca)
       r2 = (radius s) * (radius s)
-      is_intersecting = (d2 <= r2)
     in
-      if is_intersecting then
+      if (d2 <= r2) && not (tca < 0)then
         let
           thc = sqrt (r2 - d2)
           t0 = tca - thc
           t1 = tca + thc
+          intersect_t = if (min t0 t1) >= 0 then min t0 t1 else max t0 t1
         in
+          if intersect_t < 0 then
+            Intersection {
+              t = -1,
+              prim_idx = 0,
+              normal = V3 0 0 0,
+              color = V3 0 0 0
+            }
+          else
           Intersection {
-            t = min t0 t1,
+            t = intersect_t,
             prim_idx = 0,
-            normal = ((origin r) + ((direction r) `v3Times` (min t0 t1))) - (center s),
+            normal = ((origin r) + ((direction r) `v3Times` intersect_t)) - (center s),
             color = sphere_color s
           }
       else
@@ -151,7 +165,7 @@ render s w h =
       x <- [0..w]
       y <- [0..h]
       let pixel_loc = pixel00_loc + (V3 (pixel_delta_u * (fromIntegral x)) (pixel_delta_v * (fromIntegral y)) 0)
-      let ray = Ray camera_center (pixel_loc - camera_center)
+      let ray = Ray camera_center (v3Normalize (pixel_loc - camera_center))
       case traceRayPrimal ray s of
         Just i -> [color i]
         Nothing -> [V3 0 0 0]
