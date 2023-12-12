@@ -113,6 +113,9 @@ data Scene = Scene {
     -- lights     :: [Primitive]
 } deriving (Eq, Show)
 
+test1 :: Scene
+test1 = Scene [Sphere (V3 1 1 0) 1 (V3 1 0 0), Sphere (V3 0 0 0) 1 (V3 0 1 0), Sphere (V3 2 0 0) 1 (V3 0 0 1)]
+
 
 -- trace :: Ray -> Scene -> (V3 Float)
 -- trace r s = V3 0 0 0
