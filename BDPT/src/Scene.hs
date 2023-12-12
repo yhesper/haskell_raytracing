@@ -50,6 +50,9 @@ data Intersection = Intersection {
     color :: V3 Float
 } deriving (Eq, Show)
 
+instance Ord Intersection where
+  compare i1 i2 = compare (t i1) (t i2)
+
 
 class Primitive a where
   intersect :: a -> Ray -> Intersection
@@ -63,20 +66,20 @@ data Sphere = Sphere {
 } deriving (Eq, Show)
 
 instance Primitive Sphere where
-  intersect s r = 
+  intersect s r =
     let
       l = (center s) - (origin r)
       tca = l `v3Dot` (direction r)
       d2 = (l `v3Dot` l) - (tca * tca)
       r2 = (radius s) * (radius s)
-      is_intersecting = (d2 <= r2)      
-    in 
+      is_intersecting = (d2 <= r2)
+    in
       if is_intersecting then
-        let 
-          thc = sqrt(r2 - d2)
+        let
+          thc = sqrt (r2 - d2)
           t0 = tca - thc
           t1 = tca + thc
-        in  
+        in
           Intersection {
             t = min t0 t1,
             prim_idx = 0,
@@ -114,11 +117,13 @@ data Scene = Scene {
 } deriving (Eq, Show)
 
 
--- trace :: Ray -> Scene -> (V3 Float)
--- trace r s = V3 0 0 0
-
--- do this later
--- class BSDF a where 
-
-
-
+traceRayPrimal :: Ray -> Scene -> Maybe Intersection
+traceRayPrimal r s =
+  let
+    intersections = map (\p -> intersect p r) (primitives s)
+    valid_intersections = filter (\i -> t i > 0) intersections
+  in
+    if length valid_intersections > 0 then
+      Just (minimum valid_intersections)
+    else
+      Nothing
