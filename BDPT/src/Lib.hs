@@ -46,8 +46,16 @@ drawPixel (V3 r g b) = withAttr (attrName (rgbToAttrName r' g' b')) (str "██
     g' = mapToMaxColorResolution (round (g * 255) :: Int)
     b' = mapToMaxColorResolution (round (b * 255) :: Int)
 
+drawSampleProgress :: Int -> Widget Name
+drawSampleProgress s = str (show s ++ "/" ++ show spp ++ " spp")
+
 drawUI :: BDPTRenderState -> [Widget Name]
-drawUI bdptRS = [C.center $ padRight (Pad 4) (str (show (sampleIdx bdptRS) ++ "/" ++ (show spp))) <+> drawImage (img bdptRS)]
+drawUI bdptRS =
+  [C.center $
+    padRight (Pad 4) (drawSampleProgress (sampleIdx bdptRS + 1))
+    <+>
+    drawImage (img bdptRS)
+  ]
 
 handleEvent :: BrickEvent Name Tick -> EventM Name BDPTRenderState ()
 handleEvent (VtyEvent (V.EvKey V.KEsc        [])) = halt
