@@ -120,7 +120,8 @@ data Scene = Scene {
 } deriving (Eq, Show)
 
 test1 :: Scene
-test1 = Scene [Sphere (V3 1 1 0) 1 (V3 1 0 0), Sphere (V3 0 0 0) 1 (V3 0 1 0), Sphere (V3 2 0 0) 1 (V3 0 0 1)]
+-- test1 = Scene [Sphere (V3 1 1 0) 1 (V3 1 0 0), Sphere (V3 0 0 0) 1 (V3 0 1 0), Sphere (V3 2 0 0) 1 (V3 0 0 1)]
+test1 = Scene [Sphere (V3 0 0 0) 1 (V3 0 1 0)]
 
 traceRayPrimal :: Ray -> Scene -> Maybe Intersection
 traceRayPrimal r s =
@@ -140,7 +141,7 @@ render s w h =
     viewport_height = 2.0 :: Float
     viewport_width = viewport_height * aspect_ratio
     focal_length = 1.0
-    camera_center = V3 0.0 0.0 0.0 :: V3 Float
+    camera_center = V3 0.0 0.0 4.0 :: V3 Float
     viewport_upper_left = camera_center - (V3 (viewport_width / 2) (viewport_height / 2) focal_length)
     pixel00_loc = viewport_upper_left + (V3 (viewport_width / (fromIntegral w)) 0 0) + (V3 0 (viewport_height / (fromIntegral h)) 0)
     pixel_delta_u = (viewport_width / (fromIntegral w))

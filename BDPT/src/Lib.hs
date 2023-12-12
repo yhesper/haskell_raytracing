@@ -5,45 +5,51 @@ module Lib
 {-# LANGUAGE OverloadedStrings #-}
 
 import Brick
+import qualified Brick.Widgets.Center as C
 import qualified Graphics.Vty as V
 import Linear.V2
 import Linear.V3
+import Scene
 
 data Tick = Tick
 
 -- | Named resources
 type Name = ()
-type Image = ()
+type Image = [V3 Float]
+data BDPTRenderState = MkBDPTRenderState {
+  sampleIdx :: Int,
+  img :: Image
+}
 
-initialState :: Image
-initialState = ()
+initialState :: BDPTRenderState
+initialState = MkBDPTRenderState 0 (Scene.render test1 width height) --(replicate (height * width) (V3 0 0 0))
 
 height :: Int
 height = 25
 width :: Int
 width = 25
+spp :: Int
+spp = 32
 
-drawGrid :: Image -> Widget Name
-drawGrid img = vBox rows
+drawImage :: Image -> Widget Name
+drawImage img = vBox rows
   where 
     rows =  [ hBox $ pixelsInRow r | r <- [height-1,height-2..0]]
     pixelsInRow y = [drawPixel (pixelAt (V2 x y)) | x <- [0..width-1]]
-    pixelAt (V2 x y)
-      | x == 0 && y == 0 = V3 255 0 0
-      | otherwise = V3 0 255 0
+    pixelAt (V2 x y) = img !! (y * width + x)
 
 -- Take an rgb value and draw the pixel as a widget
-drawPixel :: V3 Int -> Widget Name
+drawPixel :: V3 Float -> Widget Name
 drawPixel (V3 r g b) = withAttr (attrName (rgbToAttrName r' g' b')) (str "██")
   where
-    r' = mapToMaxColorResolution r
-    g' = mapToMaxColorResolution g
-    b' = mapToMaxColorResolution b
+    r' = mapToMaxColorResolution (round (r * 255) :: Int)
+    g' = mapToMaxColorResolution (round (g * 255) :: Int)
+    b' = mapToMaxColorResolution (round (b * 255) :: Int)
 
-drawUI :: Image -> [Widget Name]
-drawUI im = [drawGrid im]
+drawUI :: BDPTRenderState -> [Widget Name]
+drawUI bdptRS = [C.center $ padRight (Pad 4) (str (show (sampleIdx bdptRS) ++ "/" ++ (show spp))) <+> drawImage (img bdptRS)]
 
-handleEvent :: BrickEvent Name Tick -> EventM Name Image ()
+handleEvent :: BrickEvent Name Tick -> EventM Name BDPTRenderState ()
 handleEvent (VtyEvent (V.EvKey V.KEsc        [])) = halt
 handleEvent _ = return ()
 
