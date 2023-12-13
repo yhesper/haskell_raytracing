@@ -131,18 +131,18 @@ data Scene = Scene {
 test2 :: Scene
 test2 = Scene [Sphere (V3 1 1 0) 1 (V3 1 0 0), Sphere (V3 0 0 0) 1 (V3 0 1 0), Sphere (V3 2 0 0) 1 (V3 0 0 1)]
 -- test1 = Scene [Sphere (V3 0 0 0) 1 (V3 0 1 0)]
-left = Sphere (V3 (1e5+1) 40.8 81.6) 1 (V3 0.75 0.25 0.25)
-right = Sphere (V3 (-1e5+99) 40.8 81.6) 1 (V3 0.25 0.25 0.75)
-back = Sphere (V3 50 40.8 1e5) 1 (V3 0.75 0.75 0.75)
-front = Sphere (V3 50 40.8 (-1e5+170)) 1 (V3 0 0 0)
+leftWall = Sphere (V3 (1e5+1) 40.8 81.6) 1 (V3 0.75 0.25 0.25)
+rightWall = Sphere (V3 (-1e5+99) 40.8 81.6) 1 (V3 0.25 0.25 0.75)
+backWall = Sphere (V3 50 40.8 1e5) 1 (V3 0.75 0.75 0.75)
+frontWall = Sphere (V3 50 40.8 (-1e5+170)) 1 (V3 0 0 0)
 bottom = Sphere (V3 50 1e5 81.6) 1 (V3 0.75 0.75 0.75)
 top = Sphere (V3 50 (-1e5+81.6) 81.6) 1 (V3 0.75 0.75 0.75)
 test1 :: Scene
-test1 = Scene [left, right, back,front, bottom, top]
+test1 = Scene [leftWall, rightWall, backWall, frontWall, bottom, top]
 
 
 updateSphere :: Scene -> Int -> Sphere -> Scene
-updateSphere s prim_id new_prim = 
+updateSphere s prim_id new_prim =
   let
     (left, right) = splitAt prim_id (primitives s)
   in
@@ -166,7 +166,7 @@ rayCastPrimitive s (img_x, img_y) (w, h) = do
 traceRayPrimal :: Ray -> Scene -> Maybe Intersection
 traceRayPrimal r s =
   let
-    intersections = mapWithIndex (\i p -> intersect r p i) (primitives s)
+    intersections = mapWithIndex (flip (intersect r)) (primitives s)
     valid_intersections = filter (\i -> case i of
                                           Just _ -> True
                                           Nothing -> False) intersections
@@ -180,16 +180,18 @@ type CameraFrame = (V3 Float, V3 Float, (Float, Float))
 
 setupCameraFrame :: Int -> Int -> CameraFrame
 setupCameraFrame w h =
-  let   
-    aspect_ratio = (fromIntegral w) / (fromIntegral h) :: Float
-    viewport_height = 2.0 :: Float
+  let
+    ww = fromIntegral w :: Float
+    hh = fromIntegral h :: Float
+    aspect_ratio = ww / hh
+    viewport_height = 2.0
     viewport_width = viewport_height * aspect_ratio
     focal_length = 1.0
-    camera_center = V3 0 0 4 :: V3 Float
-    viewport_upper_left = camera_center - (V3 (viewport_width / 2) (viewport_height / 2) focal_length)
-    pixel00_loc = viewport_upper_left + (V3 (viewport_width / (fromIntegral w)) 0 0) + (V3 0 (viewport_height / (fromIntegral h)) 0)
-    pixel_delta_u = (viewport_width / (fromIntegral w))
-    pixel_delta_v = (viewport_height / (fromIntegral h))
+    camera_center = V3 0 0 4
+    viewport_upper_left = camera_center - V3 (viewport_width / 2) (viewport_height / 2) focal_length
+    pixel00_loc = viewport_upper_left + V3 (viewport_width / ww) 0 0 + V3 0 (viewport_height / hh) 0
+    pixel_delta_u = (viewport_width / ww)
+    pixel_delta_v = (viewport_height / hh)
   in
     (camera_center, pixel00_loc, (pixel_delta_u, pixel_delta_v))
 
