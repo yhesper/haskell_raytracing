@@ -95,7 +95,7 @@ handleEvent (AppEvent Tick) = do
   
 handleEvent (VtyEvent (V.EvKey V.KEsc        [])) = halt
 -- Reset rendering to initial
-handleEvent (VtyEvent (V.EvKey (V.KChar 'r') [])) = do
+handleEvent (VtyEvent (V.EvKey V.KEnter      [])) = do
   (MkBDPTRenderState _ _ scene primitiveIdx) <- get
   put $ MkBDPTRenderState 0 emptyImg scene primitiveIdx
 handleEvent (MouseUp ClickableImage _ (Location (x, y))) = do
