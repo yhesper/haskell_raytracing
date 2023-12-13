@@ -4,8 +4,9 @@ module Lib
 
 {-# LANGUAGE OverloadedStrings #-}
 
+import Control.Monad (when)
+import Control.Monad.IO.Class (liftIO)
 import Brick
-import qualified Brick.Widgets.Center as C
 import qualified Graphics.Vty as V
 import Linear.V2
 import Linear.V3
@@ -14,20 +15,32 @@ import Scene
 data Tick = Tick
 
 -- | Named resources
-type Name = ()
+data Name = ClickableImage
+
+instance Eq Name where
+  ClickableImage == ClickableImage = True
+instance Ord Name where
+  ClickableImage < ClickableImage = False
+  ClickableImage <= ClickableImage = True
+
 type Image = [V3 Float]
 data BDPTRenderState = MkBDPTRenderState {
   sampleIdx :: Int,
-  img :: Image
+  img :: Image,
+  selectedPrimitiveIdx :: Maybe Int
 }
 
 initialState :: BDPTRenderState
-initialState = MkBDPTRenderState 0 (Scene.render test1 width height) --(replicate (height * width) (V3 0 0 0))
+initialState =
+  MkBDPTRenderState
+  0
+  (Scene.render test2 width height)
+  Nothing
 
 height :: Int
-height = 25
+height = 80
 width :: Int
-width = 25
+width = 80
 spp :: Int
 spp = 32
 
@@ -46,19 +59,32 @@ drawPixel (V3 r g b) = withAttr (attrName (rgbToAttrName r' g' b')) (str "██
     g' = mapToMaxColorResolution (round (g * 255) :: Int)
     b' = mapToMaxColorResolution (round (b * 255) :: Int)
 
+drawSelectedPrimitiveIdx :: Maybe Int -> Widget Name
+drawSelectedPrimitiveIdx idx = str ("Selected primitive: " ++ maybe "None" show idx)
+
 drawSampleProgress :: Int -> Widget Name
 drawSampleProgress s = str (show s ++ "/" ++ show spp ++ " spp")
 
 drawUI :: BDPTRenderState -> [Widget Name]
 drawUI bdptRS =
-  [C.center $
-    padRight (Pad 4) (drawSampleProgress (sampleIdx bdptRS + 1))
+  [
+    clickable ClickableImage (drawImage (img bdptRS))
     <+>
-    drawImage (img bdptRS)
+    padLeft (Pad 4)
+    (vBox [
+      drawSampleProgress (sampleIdx bdptRS + 1),
+      drawSelectedPrimitiveIdx (selectedPrimitiveIdx bdptRS)
+    ])
   ]
 
 handleEvent :: BrickEvent Name Tick -> EventM Name BDPTRenderState ()
 handleEvent (VtyEvent (V.EvKey V.KEsc        [])) = halt
+handleEvent (MouseUp ClickableImage _ (Location (x, y))) = do
+  (MkBDPTRenderState sampleIdx img _) <- get
+  -- Each "pixel" is made up of 2 chars, so divide x coord by 2
+  let coords = (x `div` 2, height-y)
+  let primitiveIdx = rayCastPrimitive test2 coords (width, height)
+  put $ MkBDPTRenderState sampleIdx img primitiveIdx
 handleEvent _ = return ()
 
 -- The attribute map cannot support 255^3 color combinations, so specify
@@ -89,13 +115,21 @@ attributeMap :: AttrMap
 attributeMap = attrMap
   V.defAttr colorMap
 
+-- Needed to enable clicking
+enableMouseEvent :: EventM Name BDPTRenderState ()
+enableMouseEvent = do
+  vty <- getVtyHandle
+  let output = V.outputIface vty
+  when (V.supportsMode output V.Mouse) $
+    liftIO $ V.setMode output V.Mouse True
+
 bdptApp :: IO ()
 bdptApp = do
   let app =  App {
     appDraw         = drawUI
   , appChooseCursor = neverShowCursor
   , appHandleEvent  = handleEvent
-  , appStartEvent   = pure ()
+  , appStartEvent   = enableMouseEvent
   , appAttrMap      = const attributeMap
   }
 

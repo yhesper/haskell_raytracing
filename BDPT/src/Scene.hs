@@ -8,6 +8,7 @@ module Scene
     , Mesh(..)
     , Scene(..),
     render,
+    rayCastPrimitive,
     test1,
     test2
     ) where
@@ -15,8 +16,6 @@ module Scene
 {-# LANGUAGE OverloadedStrings #-}
 
 import Linear.V3
-import GHC.Real (fromIntegral)
-import Data.Time.Clock.POSIX (getPOSIXTime)
 
 
 -- data Vector2 = Vector2 {
@@ -165,21 +164,12 @@ updateSphere s prim_id new_prim =
 -- copied from render function
 -- changed pixel_loc
 -- used monads
-getSphere :: Scene -> (Int, Int) -> Maybe (Sphere, Int)
-getSphere s (img_x, img_y) = do
-  let aspect_ratio = (fromIntegral w) / (fromIntegral h) :: Float
-      viewport_height = 2.0 :: Float
-      viewport_width = viewport_height * aspect_ratio
-      focal_length = 1.0
-      camera_center = V3 0 0 10 :: V3 Float
-      viewport_upper_left = camera_center - (V3 (viewport_width / 2) (viewport_height / 2) focal_length)
-      pixel00_loc = viewport_upper_left + (V3 (viewport_width / (fromIntegral w)) 0 0) + (V3 0 (viewport_height / (fromIntegral h)) 0)
-      pixel_delta_u = (viewport_width / (fromIntegral w))
-      pixel_delta_v = (viewport_height / (fromIntegral h))
-      pixel_loc = pixel00_loc + (V3 (pixel_delta_u * (fromIntegral img_x)) (pixel_delta_v * (fromIntegral img_y)) 0)
-      ray = Ray camera_center (v3Normalize (pixel_loc - camera_center))
+rayCastPrimitive :: Scene -> (Int, Int) -> (Int, Int) -> Maybe Int
+rayCastPrimitive s (img_x, img_y) (w, h) = do
+  let cameraFrame = setupCameraFrame w h
+  let ray = raygen cameraFrame img_x img_y
   intersection <- traceRayPrimal ray s
-  return (primitives s !! (prim_idx intersection), prim_idx intersection)
+  return $ prim_idx intersection
 
 
 
@@ -187,31 +177,45 @@ traceRayPrimal :: Ray -> Scene -> Maybe Intersection
 traceRayPrimal r s =
   let
     intersections = mapWithIndex (\i p -> intersect r p i) (primitives s)
-    valid_intersections = filter (\i -> t i > 0) intersections
+    valid_intersections = filter (\i -> t i > 0 && t i /= 1e99) intersections
   in
     if length valid_intersections > 0 then
       Just (minimum valid_intersections)
     else
       Nothing
 
-render :: Scene -> Int -> Int -> [V3 Float]
-render s w h =
+type CameraFrame = (V3 Float, V3 Float, (Float, Float))
+
+setupCameraFrame :: Int -> Int -> CameraFrame
+setupCameraFrame w h =
   let   
     aspect_ratio = (fromIntegral w) / (fromIntegral h) :: Float
     viewport_height = 2.0 :: Float
     viewport_width = viewport_height * aspect_ratio
     focal_length = 1.0
-    camera_center = V3 0 0 10 :: V3 Float
+    camera_center = V3 0 0 4 :: V3 Float
     viewport_upper_left = camera_center - (V3 (viewport_width / 2) (viewport_height / 2) focal_length)
     pixel00_loc = viewport_upper_left + (V3 (viewport_width / (fromIntegral w)) 0 0) + (V3 0 (viewport_height / (fromIntegral h)) 0)
     pixel_delta_u = (viewport_width / (fromIntegral w))
     pixel_delta_v = (viewport_height / (fromIntegral h))
   in
+    (camera_center, pixel00_loc, (pixel_delta_u, pixel_delta_v))
+
+raygen :: CameraFrame -> Int -> Int -> Ray
+raygen (camera_center, pixel00_loc, (pixel_delta_u, pixel_delta_v)) x y =
+  let pixel_loc = pixel00_loc + (V3 (pixel_delta_u * (fromIntegral x + 0.5)) (pixel_delta_v * (fromIntegral y + 0.5)) 0)
+      ray = Ray camera_center (v3Normalize (pixel_loc - camera_center))
+  in
+    ray
+
+render :: Scene -> Int -> Int -> [V3 Float]
+render s w h =
+  let cameraFrame = setupCameraFrame w h
+  in
     do
       y <- [0..h-1]
       x <- [0..w-1]
-      let pixel_loc = pixel00_loc + (V3 (pixel_delta_u * (fromIntegral x)) (pixel_delta_v * (fromIntegral y)) 0)
-      let ray = Ray camera_center (v3Normalize (pixel_loc - camera_center))
+      let ray = raygen cameraFrame x y
       case traceRayPrimal ray s of
         Just i -> [color i `v3Times` (max ((normal i) `v3Dot` (v3Normalize (V3 1 1 1))) 0.0)]
         Nothing -> [V3 0 0 0]
