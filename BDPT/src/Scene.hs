@@ -69,7 +69,7 @@ instance Ord Intersection where
 
 
 class Primitive a where
-  intersect :: Ray -> a -> Int -> Intersection
+  intersect :: Ray -> a -> Int -> Maybe Intersection
   volume :: a -> Float
   area :: a -> Float
 
@@ -95,26 +95,16 @@ instance Primitive Sphere where
           intersect_t = if (min t0 t1) >= 0 then min t0 t1 else max t0 t1
         in
           if intersect_t < 0 then
-            Intersection {
-              t = 1e99,
-              prim_idx = i,
-              normal = V3 0 0 0,
-              color = V3 0 0 0
-            }
+            Nothing
           else
-          Intersection {
-            t = intersect_t,
-            prim_idx = i,
-            normal = v3Normalize (((origin r) + ((direction r) `v3Times` intersect_t)) - (center s)),
-            color = sphere_color s
-          }
+            Just Intersection {
+              t = intersect_t,
+              prim_idx = i,
+              normal = v3Normalize (((origin r) + ((direction r) `v3Times` intersect_t)) - (center s)),
+              color = sphere_color s
+            }
       else
-        Intersection {
-            t = 1e99,
-            prim_idx = i,
-            normal = V3 0 0 0,
-            color = V3 0 0 0
-          }
+        Nothing
   volume s = 4/3 * pi * (radius s) * (radius s) * (radius s)
   area s = 4 * pi * (radius s) * (radius s)
 
@@ -177,10 +167,12 @@ traceRayPrimal :: Ray -> Scene -> Maybe Intersection
 traceRayPrimal r s =
   let
     intersections = mapWithIndex (\i p -> intersect r p i) (primitives s)
-    valid_intersections = filter (\i -> t i > 0 && t i /= 1e99) intersections
+    valid_intersections = filter (\i -> case i of
+                                          Just _ -> True
+                                          Nothing -> False) intersections
   in
     if length valid_intersections > 0 then
-      Just (minimum valid_intersections)
+      minimum valid_intersections
     else
       Nothing
 
