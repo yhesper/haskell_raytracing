@@ -162,8 +162,8 @@ render s w h =
     pixel_delta_v = (viewport_height / (fromIntegral h))
   in
     do
-      x <- [0..w]
-      y <- [0..h]
+      y <- [0..h-1]
+      x <- [0..w-1]
       let pixel_loc = pixel00_loc + (V3 (pixel_delta_u * (fromIntegral x)) (pixel_delta_v * (fromIntegral y)) 0)
       let ray = Ray camera_center (v3Normalize (pixel_loc - camera_center))
       case traceRayPrimal ray s of
