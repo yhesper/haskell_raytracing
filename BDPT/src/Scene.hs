@@ -8,7 +8,8 @@ module Scene
     , Mesh(..)
     , Scene(..),
     render,
-    test1
+    test1,
+    test2
     ) where
 
 {-# LANGUAGE OverloadedStrings #-}
@@ -100,7 +101,7 @@ instance Primitive Sphere where
           Intersection {
             t = intersect_t,
             prim_idx = 0,
-            normal = ((origin r) + ((direction r) `v3Times` intersect_t)) - (center s),
+            normal = v3Normalize (((origin r) + ((direction r) `v3Times` intersect_t)) - (center s)),
             color = sphere_color s
           }
       else
@@ -176,6 +177,5 @@ render s w h =
       let pixel_loc = pixel00_loc + (V3 (pixel_delta_u * (fromIntegral x)) (pixel_delta_v * (fromIntegral y)) 0)
       let ray = Ray camera_center (v3Normalize (pixel_loc - camera_center))
       case traceRayPrimal ray s of
-        Just i -> [color i]
+        Just i -> [color i `v3Times` (max ((normal i) `v3Dot` (v3Normalize (V3 1 1 1))) 0.0)]
         Nothing -> [V3 0 0 0]
-
