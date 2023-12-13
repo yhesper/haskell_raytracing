@@ -16,6 +16,8 @@ module Scene
 
 import Linear.V3
 import GHC.Real (fromIntegral)
+import Data.Time.Clock.POSIX (getPOSIXTime)
+
 
 -- data Vector2 = Vector2 {
 --     u :: Float,
@@ -41,6 +43,9 @@ v3Norm (V3 x y z) = sqrt (x*x + y*y + z*z)
 v3Normalize :: V3 Float -> V3 Float
 v3Normalize v = v `v3Div` (v3Norm v)
 
+mapWithIndex :: (Int -> a -> b) -> [a] -> [b]
+mapWithIndex f xs = map (\(index, element) -> f index element) (zip [0..] xs)
+
 data Ray = Ray {
     origin :: V3 Float,
     direction :: V3 Float
@@ -65,7 +70,7 @@ instance Ord Intersection where
 
 
 class Primitive a where
-  intersect :: a -> Ray -> Intersection
+  intersect :: Ray -> a -> Int -> Intersection
   volume :: a -> Float
   area :: a -> Float
 
@@ -76,7 +81,7 @@ data Sphere = Sphere {
 } deriving (Eq, Show)
 
 instance Primitive Sphere where
-  intersect s r =
+  intersect r s i =
     let
       l = (center s) - (origin r)
       tca = l `v3Dot` (direction r)
@@ -92,22 +97,22 @@ instance Primitive Sphere where
         in
           if intersect_t < 0 then
             Intersection {
-              t = -1,
-              prim_idx = 0,
+              t = 1e99,
+              prim_idx = i,
               normal = V3 0 0 0,
               color = V3 0 0 0
             }
           else
           Intersection {
             t = intersect_t,
-            prim_idx = 0,
+            prim_idx = i,
             normal = v3Normalize (((origin r) + ((direction r) `v3Times` intersect_t)) - (center s)),
             color = sphere_color s
           }
       else
         Intersection {
-            t = -1,
-            prim_idx = 0,
+            t = 1e99,
+            prim_idx = i,
             normal = V3 0 0 0,
             color = V3 0 0 0
           }
@@ -147,10 +152,41 @@ test1 :: Scene
 test1 = Scene [left, right, back,front, bottom, top]
 
 
+updateSphere :: Scene -> Int -> Sphere -> Scene
+updateSphere s prim_id new_prim = 
+  let
+    (left, right) = splitAt prim_id (primitives s)
+  in
+    Scene (left ++ [new_prim] ++ (tail right))
+
+-- can define a function to update lighting in the same way
+-- updateLight :: Scene -> Int -> Light -> Scene
+
+-- copied from render function
+-- changed pixel_loc
+-- used monads
+getSphere :: Scene -> (Int, Int) -> Maybe (Sphere, Int)
+getSphere s (img_x, img_y) = do
+  let aspect_ratio = (fromIntegral w) / (fromIntegral h) :: Float
+      viewport_height = 2.0 :: Float
+      viewport_width = viewport_height * aspect_ratio
+      focal_length = 1.0
+      camera_center = V3 0 0 10 :: V3 Float
+      viewport_upper_left = camera_center - (V3 (viewport_width / 2) (viewport_height / 2) focal_length)
+      pixel00_loc = viewport_upper_left + (V3 (viewport_width / (fromIntegral w)) 0 0) + (V3 0 (viewport_height / (fromIntegral h)) 0)
+      pixel_delta_u = (viewport_width / (fromIntegral w))
+      pixel_delta_v = (viewport_height / (fromIntegral h))
+      pixel_loc = pixel00_loc + (V3 (pixel_delta_u * (fromIntegral img_x)) (pixel_delta_v * (fromIntegral img_y)) 0)
+      ray = Ray camera_center (v3Normalize (pixel_loc - camera_center))
+  intersection <- traceRayPrimal ray s
+  return (primitives s !! (prim_idx intersection), prim_idx intersection)
+
+
+
 traceRayPrimal :: Ray -> Scene -> Maybe Intersection
 traceRayPrimal r s =
   let
-    intersections = map (\p -> intersect p r) (primitives s)
+    intersections = mapWithIndex (\i p -> intersect r p i) (primitives s)
     valid_intersections = filter (\i -> t i > 0) intersections
   in
     if length valid_intersections > 0 then
@@ -165,7 +201,7 @@ render s w h =
     viewport_height = 2.0 :: Float
     viewport_width = viewport_height * aspect_ratio
     focal_length = 1.0
-    camera_center = V3 50 52 295.6 :: V3 Float
+    camera_center = V3 0 0 10 :: V3 Float
     viewport_upper_left = camera_center - (V3 (viewport_width / 2) (viewport_height / 2) focal_length)
     pixel00_loc = viewport_upper_left + (V3 (viewport_width / (fromIntegral w)) 0 0) + (V3 0 (viewport_height / (fromIntegral h)) 0)
     pixel_delta_u = (viewport_width / (fromIntegral w))
