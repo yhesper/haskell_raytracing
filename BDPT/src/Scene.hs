@@ -36,6 +36,8 @@ v3Times (V3 x y z) s = V3 (x * s) (y * s) (z * s)
 
 v3Dot (V3 x1 y1 z1) (V3 x2 y2 z2) = x1 * x2 + y1 * y2 + z1 * z2
 
+v3Cross (V3 x1 y1 z1) (V3 x2 y2 z2) = V3 (y1 * z2 - z1 * y2) (z1 * x2 - x1 * z2) (x1 * y2 - y1 * x2)
+
 v3Norm :: V3 Float -> Float
 v3Norm (V3 x y z) = sqrt (x*x + y*y + z*z)
 
