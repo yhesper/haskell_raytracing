@@ -44,6 +44,10 @@ v3Norm (V3 x y z) = sqrt (x*x + y*y + z*z)
 v3Normalize :: V3 Float -> V3 Float
 v3Normalize v = v `v3Div` (v3Norm v)
 
+dist :: V3 Float -> V3 Float -> Float
+dist (V3 x1 y1 z1) (V3 x2 y2 z2) =
+  sqrt ((x2 - x1)^2 + (y2 - y1)^2 + (z2 - z1)^2)
+
 mapWithIndex :: (Int -> a -> b) -> [a] -> [b]
 mapWithIndex f xs = map (\(index, element) -> f index element) (zip [0..] xs)
 
@@ -124,6 +128,20 @@ data Mesh = Mesh {
     normals  :: [V3 Float],
     colors   :: [V3 Float]
 } deriving (Eq, Show)
+
+-- define point light
+data Light = PointLight
+  { lightPosition :: V3 Float  -- Position of the light source
+  , lightColor :: V3 Float       -- Color of the light
+  , lightIntensity :: Float  -- Intensity of the light
+  } deriving (Show)
+
+-- Function to calculate the intensity of light at a given point
+calculateLightIntensity :: Light -> V3 Float -> Float
+calculateLightIntensity light point =
+  let distance = dist (lightPosition light) point
+  in lightIntensity light / (distance * distance)
+
 
 data Scene = Scene {
     primitives :: [Sphere]

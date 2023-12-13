@@ -4,9 +4,11 @@ module Lib
 
 {-# LANGUAGE OverloadedStrings #-}
 
-import Control.Monad (when)
 import Control.Monad.IO.Class (liftIO)
+import Control.Concurrent (threadDelay, forkIO)
+import Control.Monad (when, void, forever)
 import Brick
+import Brick.BChan
 import qualified Graphics.Vty as V
 import Linear.V2
 import Linear.V3
@@ -25,16 +27,21 @@ instance Ord Name where
 
 type Image = [V3 Float]
 data BDPTRenderState = MkBDPTRenderState {
-  sampleIdx :: Int,
-  img :: Image,
-  selectedPrimitiveIdx :: Maybe Int
+  _sampleIdx :: Int,
+  _img :: Image,
+  _scene :: Scene.Scene,
+  _selectedPrimitiveIdx :: Maybe Int
 }
+
+emptyImg :: Image
+emptyImg = replicate (width * height) (V3 0 0 0)
 
 initialState :: BDPTRenderState
 initialState =
   MkBDPTRenderState
   0
-  (Scene.render test2 width height)
+  emptyImg
+  test2
   Nothing
 
 height :: Int
@@ -68,23 +75,35 @@ drawSampleProgress s = str (show s ++ "/" ++ show spp ++ " spp")
 drawUI :: BDPTRenderState -> [Widget Name]
 drawUI bdptRS =
   [
-    clickable ClickableImage (drawImage (img bdptRS))
+    clickable ClickableImage (drawImage (_img bdptRS))
     <+>
     padLeft (Pad 4)
     (vBox [
-      drawSampleProgress (sampleIdx bdptRS + 1),
-      drawSelectedPrimitiveIdx (selectedPrimitiveIdx bdptRS)
+      drawSampleProgress (_sampleIdx bdptRS),
+      drawSelectedPrimitiveIdx (_selectedPrimitiveIdx bdptRS)
     ])
   ]
 
 handleEvent :: BrickEvent Name Tick -> EventM Name BDPTRenderState ()
+handleEvent (AppEvent Tick) = do
+  (MkBDPTRenderState sampleIdx _ scene primitiveIdx) <- get
+  if sampleIdx >= spp then
+    return ()
+  else do
+    let img = Scene.render scene width height
+    put $ MkBDPTRenderState (sampleIdx+1) img scene primitiveIdx
+  
 handleEvent (VtyEvent (V.EvKey V.KEsc        [])) = halt
+-- Reset rendering to initial
+handleEvent (VtyEvent (V.EvKey V.KEnter      [])) = do
+  (MkBDPTRenderState _ _ scene primitiveIdx) <- get
+  put $ MkBDPTRenderState 0 emptyImg scene primitiveIdx
 handleEvent (MouseUp ClickableImage _ (Location (x, y))) = do
-  (MkBDPTRenderState sampleIdx img _) <- get
+  (MkBDPTRenderState sampleIdx img scene _) <- get
   -- Each "pixel" is made up of 2 chars, so divide x coord by 2
   let coords = (x `div` 2, height-y)
   let primitiveIdx = rayCastPrimitive test2 coords (width, height)
-  put $ MkBDPTRenderState sampleIdx img primitiveIdx
+  put $ MkBDPTRenderState sampleIdx img scene primitiveIdx
 handleEvent _ = return ()
 
 -- The attribute map cannot support 255^3 color combinations, so specify
@@ -133,6 +152,13 @@ bdptApp = do
   , appAttrMap      = const attributeMap
   }
 
+  chan <- newBChan 1
+  void . forkIO $ forever $ do
+    writeBChan chan Tick
+    threadDelay $ round (167e3 :: Float) -- Render at up to 60 fps - 16.7 ms per tick
+
   -- Run the Brick app
-  _ <- defaultMain app initialState
+  let builder = V.mkVty V.defaultConfig
+  initialVty <- builder
+  _ <- customMain initialVty builder (Just chan) app initialState
   return ()
