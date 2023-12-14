@@ -54,7 +54,7 @@ height = 40
 width :: Int
 width = 40
 spp :: Int
-spp = 32
+spp = 1024
 
 drawImage :: Image -> Widget Name
 drawImage img = vBox rows
@@ -67,9 +67,9 @@ drawImage img = vBox rows
 drawPixel :: V3 Float -> Widget Name
 drawPixel (V3 r g b) = withAttr (attrName (rgbToAttrName r' g' b')) (str "██")
   where
-    r' = mapToMaxColorResolution (round (r * 255) :: Int)
-    g' = mapToMaxColorResolution (round (g * 255) :: Int)
-    b' = mapToMaxColorResolution (round (b * 255) :: Int)
+    r' = mapToMaxColorResolution (round (r / (r + 1) * 255) :: Int)
+    g' = mapToMaxColorResolution (round (g / (g + 1) * 255) :: Int)
+    b' = mapToMaxColorResolution (round (b / (b + 1) * 255) :: Int)
 
 drawSampleProgress :: Int -> Widget Name
 drawSampleProgress s = str ("Progress: " ++ show s ++ "/" ++ show spp ++ " spp")
