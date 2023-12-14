@@ -19,6 +19,7 @@ module Scene
 import Linear.V3
 import Linear.Matrix
 import System.Random
+import Data.Maybe
 
 -- data Vector2 = Vector2 {
 --     u :: Float,
@@ -185,21 +186,27 @@ rayCastPrimitive :: Scene -> (Int, Int) -> (Int, Int) -> Maybe Int
 rayCastPrimitive s (img_x, img_y) (w, h) = do
   let cameraFrame = setupCameraFrame w h
   let ray = raygen cameraFrame img_x img_y
-  intersection <- traceRayPrimal ray s
+  intersection <- closestHit ray s
   return $ prim_idx intersection
 
-traceRayPrimal :: Ray -> Scene -> Maybe Intersection
-traceRayPrimal r s =
+closestHit :: Ray -> Scene -> Maybe Intersection
+closestHit r s =
   let
     intersections = mapWithIndex (flip (intersect r)) (primitives s)
-    valid_intersections = filter (\i -> case i of
-                                          Just _ -> True
-                                          Nothing -> False) intersections
+    valid_intersections = catMaybes intersections
   in
-    if length valid_intersections > 0 then
-      minimum valid_intersections
+    if not (null valid_intersections) then
+      Just (minimum valid_intersections)
     else
       Nothing
+
+anyHit :: Ray -> Scene -> Bool
+anyHit r s =
+  let
+    intersections = mapWithIndex (flip (intersect r)) (primitives s)
+    valid_intersections = catMaybes intersections
+  in
+    not (null valid_intersections)
 
 type CameraFrame = (V3 Float, V3 Float, (Float, Float))
 
@@ -245,31 +252,24 @@ calculatePointLightIntensity light point =
 
 traceRay :: Ray -> Scene -> Int -> Int -> V3 Float
 traceRay r s d seed =
-  let
-    intersections = mapWithIndex (flip (intersect r)) (primitives s)
-    valid_intersections = filter (\i -> case i of
-                                          Just _ -> True
-                                          Nothing -> False) intersections
-  in
-    if length valid_intersections > 0 then
-      do
-        let mi = minimum valid_intersections
-        let hitColor = maybe (V3 0 0 0) color mi
-        let hitPoint = origin r + (direction r `v3Times` maybe 0 t mi)
-        let hitNormal = maybe (V3 0 0 0) normal mi
-        let light = PointLight (V3 0 (sphere_y + 5) 0) (V3 1 1 1) 10
-        let rm = rotationMatrix hitNormal
-        let newDirection = randomDirection $ mkStdGen (seed + d)
-        let newDirectionRotated = rm !* newDirection
-        let newRay = Ray (hitPoint + newDirectionRotated `v3Times` 1e-3) (v3Normalize newDirectionRotated)
-        let lightDirection = v3Normalize (lightPosition light - hitPoint)
-        let color = hitColor -- `v3Times` max (hitNormal `v3Dot` lightDirection) 0.0
-        if d == 0 then
-          color * lightColor light `v3Times` lightIntensity light
-        else
-          color * traceRay newRay s (d - 1) seed
-    else
-      V3 0 0 0
+  case closestHit r s of
+    Just intersection -> 
+        let hitColor = color intersection
+            hitPoint = origin r + (direction r `v3Times` t intersection)
+            hitNormal = normal intersection
+            light = PointLight (V3 0 (sphere_y + 5) 0) (V3 1 1 1) 10
+            rm = rotationMatrix hitNormal
+            newDirection = randomDirection $ mkStdGen (seed + d)
+            newDirectionRotated = rm !* newDirection
+            newRay = Ray (hitPoint + newDirectionRotated `v3Times` 1e-3) (v3Normalize newDirectionRotated)
+            -- lightDirection = v3Normalize (lightPosition light - hitPoint)
+            brdf = hitColor -- `v3Times` max (hitNormal `v3Dot` lightDirection) 0.0
+        in
+          if d == 0 then
+            brdf * lightColor light `v3Times` lightIntensity light
+          else
+            brdf * traceRay newRay s (d - 1) seed
+    Nothing -> V3 0 0 0
 
 randomDirection :: StdGen -> V3 Float
 randomDirection gen =
