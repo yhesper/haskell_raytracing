@@ -9,14 +9,16 @@ module Scene
     , Scene(..),
     render,
     rayCastPrimitive,
-    updateSphere,
-    test2
+    test2,
+    v3Times,
+    updateSphere
     ) where
 
 {-# LANGUAGE OverloadedStrings #-}
 
 import Linear.V3
-
+import Linear.Matrix
+import System.Random
 
 -- data Vector2 = Vector2 {
 --     u :: Float,
@@ -129,26 +131,33 @@ data Mesh = Mesh {
     colors   :: [V3 Float]
 } deriving (Eq, Show)
 
-data AreaLight = AreaLight
+-- data AreaLight = AreaLight
+--   { lightPosition :: V3 Float  -- Position of the light source
+--   , lightNormal :: V3 Float   -- Normal vector of the light surface
+--   , lightColor :: V3 Float      -- Color of the light
+--   , lightIntensity :: Float  -- Intensity of the light
+--   , lightSize :: Float       -- Size of the light source
+--   } deriving (Show)
+
+data PointLight = PointLight
   { lightPosition :: V3 Float  -- Position of the light source
-  , lightNormal :: V3 Float   -- Normal vector of the light surface
   , lightColor :: V3 Float      -- Color of the light
   , lightIntensity :: Float  -- Intensity of the light
-  , lightSize :: Float       -- Size of the light source
   } deriving (Show)
 
 
 data Scene = Scene {
-    primitives :: [Sphere],
-    light     ::  AreaLight
+    primitives :: [Sphere]
+    -- light     ::  AreaLight
 } deriving (Show)
-al = AreaLight (V3 0 (sphere_y+5) 0) (V3 0 (-1) 0) (V3 1 1 1) 1 1
+-- al = AreaLight (V3 0 (sphere_y+5) 0) (V3 0 (-1) 0) (V3 1 1 1) 1 1
 
 
 sphere_y :: Float
 sphere_y = -1.8
 test2 :: Scene
-test2 = Scene [bottom, backWall, leftWall, rightWall, top, area_light, Sphere (V3 1 (sphere_y+1) 0) 1 (V3 1 0 0), Sphere (V3 0 sphere_y 0) 1 (V3 0 1 0), Sphere (V3 2 sphere_y 0) 1 (V3 0 0 1)] al
+-- test2 = Scene [bottom, backWall, leftWall, rightWall, top, area_light, Sphere (V3 1 (sphere_y+1) 0) 1 (V3 1 0 0), Sphere (V3 0 sphere_y 0) 1 (V3 0 1 0), Sphere (V3 2 sphere_y 0) 1 (V3 0 0 1)] al
+test2 = Scene [bottom, backWall, leftWall, rightWall, top, area_light, Sphere (V3 1 (sphere_y+1) 0) 1 (V3 1 0 0), Sphere (V3 0 sphere_y 0) 1 (V3 0 1 0), Sphere (V3 2 sphere_y 0) 1 (V3 0 0 1)]
 rightWall = Sphere (V3 (1e5) 50 (-2e5)) 1.3e5 (V3 0.25 0.25 0.75)
 leftWall = Sphere (V3 (-1e5) 50 (-2e5)) 1.3e5 (V3 0.75 0.25 0.25)
 backWall = Sphere (V3 0 00 (-2e5)) 1.3e5 (V3 0.75 0.75 0.75)
@@ -158,13 +167,13 @@ area_light = Sphere (V3 0 (sphere_y+5) 0) 0.5 (V3 1 1 1)
 
 
 
-
 updateSphere :: Scene -> Int -> Sphere -> Scene
 updateSphere s prim_id new_prim =
   let
     (left, right) = splitAt prim_id (primitives s)
   in
-    Scene (left ++ [new_prim] ++ (tail right)) (light s)
+    -- Scene (left ++ [new_prim] ++ (tail right)) (light s)
+    Scene (left ++ [new_prim] ++ (tail right))
 
 -- can define a function to update lighting in the same way
 -- updateLight :: Scene -> Int -> Light -> Scene
@@ -218,14 +227,85 @@ raygen (camera_center, pixel00_loc, (pixel_delta_u, pixel_delta_v)) x y =
   in
     ray
 
-render :: Scene -> Int -> Int -> [V3 Float]
-render s w h =
+render :: Scene -> Int -> Int -> Int -> [V3 Float]
+render s w h sampleIdx =
   let cameraFrame = setupCameraFrame w h
   in
     do
       y <- [0..h-1]
       x <- [0..w-1]
       let ray = raygen cameraFrame x y
-      case traceRayPrimal ray s of
-        Just i -> [color i `v3Times` (max ((normal i) `v3Dot` (v3Normalize (V3 1 1 1))) 0.0)]
-        Nothing -> [V3 0 0 0]
+      let seed = sampleIdx * 32 * w * h * 3 + y * w * 3 + x * 3
+      return $ traceRay ray s 2 seed
+
+calculatePointLightIntensity :: PointLight -> V3 Float -> Float
+calculatePointLightIntensity light point =
+  let distance = dist (lightPosition light) point
+  in lightIntensity light / (distance * distance)
+
+traceRay :: Ray -> Scene -> Int -> Int -> V3 Float
+traceRay r s d seed =
+  let
+    intersections = mapWithIndex (flip (intersect r)) (primitives s)
+    valid_intersections = filter (\i -> case i of
+                                          Just _ -> True
+                                          Nothing -> False) intersections
+  in
+    if length valid_intersections > 0 then
+      do
+        let mi = minimum valid_intersections
+        let hitColor = maybe (V3 0 0 0) color mi
+        let hitPoint = origin r + (direction r `v3Times` maybe 0 t mi)
+        let hitNormal = maybe (V3 0 0 0) normal mi
+        let light = PointLight (V3 0 (sphere_y + 5) 0) (V3 1 1 1) 10
+        let rm = rotationMatrix hitNormal
+        let newDirection = randomDirection $ mkStdGen (seed + d)
+        let newDirectionRotated = rm !* newDirection
+        let newRay = Ray (hitPoint + newDirectionRotated `v3Times` 1e-3) (v3Normalize newDirectionRotated)
+        let lightDirection = v3Normalize (lightPosition light - hitPoint)
+        let color = hitColor -- `v3Times` max (hitNormal `v3Dot` lightDirection) 0.0
+        if d == 0 then
+          color * lightColor light `v3Times` lightIntensity light
+        else
+          color * traceRay newRay s (d - 1) seed
+    else
+      V3 0 0 0
+
+randomDirection :: StdGen -> V3 Float
+randomDirection gen =
+  let
+    (u, gen1) = random gen
+    (v, gen2) = random gen1
+    sx = 2 * u - 1
+    sy = 2 * v - 1
+    r = if abs sx > abs sy then sx else sy
+    theta = if abs sx > abs sy then pi / 4 * (sy / sx) else pi / 2 - pi / 4 * (sx / sy)
+    x = r * cos theta
+    y = r * sin theta
+    z = sqrt (max 0 (1 - x * x - y * y))
+  in
+    V3 x y z
+
+rotationMatrix :: V3 Float -> M33 Float
+rotationMatrix (V3 xx yy zz)
+  | abs xx <= abs yy && abs xx <= abs zz = let
+                                          z = V3 xx yy zz
+                                          h = V3 1 yy zz
+                                          y = v3Normalize (h `v3Cross` z)
+                                          x = v3Normalize (z `v3Cross` y)
+                                        in
+                                          V3 x y z
+  | abs yy <= abs xx && abs yy <= abs zz = let
+                                          z = V3 xx yy zz
+                                          h = V3 xx 1 zz
+                                          y = v3Normalize (h `v3Cross` z)
+                                          x = v3Normalize (z `v3Cross` y)
+                                        in
+                                          V3 x y z
+  | otherwise = let
+                  z = V3 xx yy zz
+                  h = V3 xx yy 1
+                  y = v3Normalize (h `v3Cross` z)
+                  x = v3Normalize (z `v3Cross` y)
+                in
+                  V3 x y z

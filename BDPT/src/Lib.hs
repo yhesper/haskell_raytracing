@@ -150,14 +150,25 @@ editPrimitiveColor delta = do
       in
         put $ MkBDPTRenderState 0 img updatedScene primitiveIdx colorChannel
 
+accumulateImg :: Image -> Image -> Int -> Image
+accumulateImg old new sampleIdx =
+  let 
+    si = fromIntegral sampleIdx :: Float
+    img1' = map (\(V3 r1 g1 b1)  -> V3 (r1 * si) (g1 * si) (b1 * si)) old
+    img2' = zipWith (+) img1' new
+    accumulated = map (\(V3 r2 g2 b2) -> V3 (r2 / (si + 1)) (g2 / (si + 1)) (b2 / (si + 1))) img2'
+  in
+    accumulated
+
 handleEvent :: BrickEvent Name Tick -> EventM Name BDPTRenderState ()
 handleEvent (AppEvent Tick) = do
-  (MkBDPTRenderState sampleIdx _ scene primitiveIdx colorChannel) <- get
+  (MkBDPTRenderState sampleIdx img scene primitiveIdx colorChannel) <- get
   if sampleIdx >= spp then
     return ()
   else do
-    let img = Scene.render scene width height
-    put $ MkBDPTRenderState (sampleIdx+1) img scene primitiveIdx colorChannel
+    let newImg = Scene.render scene width height sampleIdx
+    let accumulatedImg = accumulateImg img newImg sampleIdx
+    put $ MkBDPTRenderState (sampleIdx+1) accumulatedImg scene primitiveIdx colorChannel
   
 handleEvent (VtyEvent (V.EvKey V.KEsc        [])) = halt
 handleEvent (VtyEvent (V.EvKey (V.KChar 'r') [])) = updateChannelColor CCR
