@@ -8,6 +8,7 @@ import Control.Monad.IO.Class (liftIO)
 import Control.Concurrent (threadDelay, forkIO)
 import Control.Monad (when, void, forever)
 import Brick
+import qualified Brick.Widgets.Center as C
 import Brick.BChan
 import qualified Graphics.Vty as V
 import Linear.V2
@@ -25,12 +26,15 @@ instance Ord Name where
   ClickableImage < ClickableImage = False
   ClickableImage <= ClickableImage = True
 
+data ColorChannel = CCR | CCG | CCB
+
 type Image = [V3 Float]
 data BDPTRenderState = MkBDPTRenderState {
   _sampleIdx :: Int,
   _img :: Image,
   _scene :: Scene.Scene,
-  _selectedPrimitiveIdx :: Maybe Int
+  _selectedPrimitiveIdx :: Maybe Int,
+  _selectedColorChannel :: ColorChannel
 }
 
 emptyImg :: Image
@@ -43,6 +47,7 @@ initialState =
   emptyImg
   test2
   Nothing
+  CCR
 
 height :: Int
 height = 40
@@ -66,11 +71,30 @@ drawPixel (V3 r g b) = withAttr (attrName (rgbToAttrName r' g' b')) (str "██
     g' = mapToMaxColorResolution (round (g * 255) :: Int)
     b' = mapToMaxColorResolution (round (b * 255) :: Int)
 
-drawSelectedPrimitiveIdx :: Maybe Int -> Widget Name
-drawSelectedPrimitiveIdx idx = str ("Selected primitive: " ++ maybe "None" show idx)
-
 drawSampleProgress :: Int -> Widget Name
-drawSampleProgress s = str (show s ++ "/" ++ show spp ++ " spp")
+drawSampleProgress s = str ("Progress: " ++ show s ++ "/" ++ show spp ++ " spp")
+
+drawSelectedPrimitive :: Scene -> Maybe Int -> Widget Name
+drawSelectedPrimitive scene idx = vBox $ str ("Selected primitive: " ++ maybe "None" show idx) : primitiveInfo
+  where
+    primitiveInfo = maybe [] drawPrimitiveInfo idx
+    drawPrimitiveInfo i =
+      let primitive = primitives scene !! i
+          (V3 r g b) = sphere_color primitive
+          r' = show (round (r * 255) :: Int)
+          g' = show (round (g * 255) :: Int)
+          b' = show (round (b * 255) :: Int)
+      in    
+        [str $ "    RGB Color: " ++ r' ++ ", " ++ g' ++ ", " ++ b']
+
+drawSelectedColorChannel :: ColorChannel -> Widget Name
+drawSelectedColorChannel cc = str
+  ("Selected color channel: " ++
+    case cc of
+      CCR -> "R"
+      CCG -> "G"
+      CCB -> "B"
+  )
 
 drawUI :: BDPTRenderState -> [Widget Name]
 drawUI bdptRS =
@@ -79,31 +103,74 @@ drawUI bdptRS =
     <+>
     padLeft (Pad 4)
     (vBox [
+      str "Haskell Renderer",
+      str " ",
       drawSampleProgress (_sampleIdx bdptRS),
-      drawSelectedPrimitiveIdx (_selectedPrimitiveIdx bdptRS)
+      C.vCenter
+      (vBox [
+        str "Scene Editing:",
+        str " ",
+        drawSelectedColorChannel (_selectedColorChannel bdptRS),
+        drawSelectedPrimitive (_scene bdptRS) (_selectedPrimitiveIdx bdptRS)
+      ]),
+      C.vCenter
+      (vBox [
+        str "Controls:",
+        str " ",
+        str "Esc:               Quit",
+        str "Left Click:        Select object to edit",
+        str "R, G, B:           Select color channel to edit",
+        str "Left/Right Arrow:  Increase/Decrease selected color channel"
+      ])
     ])
   ]
 
+updateChannelColor :: ColorChannel -> EventM Name BDPTRenderState ()
+updateChannelColor colorChannel = do
+  (MkBDPTRenderState sampleIdx img scene primitiveIdx _) <- get
+  put $ MkBDPTRenderState sampleIdx img scene primitiveIdx colorChannel
+
+updateColorChannel :: Float -> Int -> Float
+updateColorChannel c delta = clamp 0 255 (c*255 + (fromIntegral delta :: Float)) / 255
+
+updateColor :: ColorChannel -> V3 Float -> Int -> V3 Float
+updateColor CCR (V3 r g b) delta = V3 (updateColorChannel r delta) g b
+updateColor CCG (V3 r g b) delta = V3 r (updateColorChannel g delta) b
+updateColor CCB (V3 r g b) delta = V3 r g (updateColorChannel b delta)
+
+editPrimitiveColor :: Int -> EventM Name BDPTRenderState ()
+editPrimitiveColor delta = do
+  (MkBDPTRenderState _ img scene primitiveIdx colorChannel) <- get
+  case primitiveIdx of
+    Nothing -> return ()
+    Just idx ->
+      let (Sphere center radius sphere_color) = primitives scene !! idx
+          updatedSphere = Sphere center radius (updateColor colorChannel sphere_color delta)
+          updatedScene = updateSphere scene idx updatedSphere
+      in
+        put $ MkBDPTRenderState 0 img updatedScene primitiveIdx colorChannel
+
 handleEvent :: BrickEvent Name Tick -> EventM Name BDPTRenderState ()
 handleEvent (AppEvent Tick) = do
-  (MkBDPTRenderState sampleIdx _ scene primitiveIdx) <- get
+  (MkBDPTRenderState sampleIdx _ scene primitiveIdx colorChannel) <- get
   if sampleIdx >= spp then
     return ()
   else do
     let img = Scene.render scene width height
-    put $ MkBDPTRenderState (sampleIdx+1) img scene primitiveIdx
+    put $ MkBDPTRenderState (sampleIdx+1) img scene primitiveIdx colorChannel
   
 handleEvent (VtyEvent (V.EvKey V.KEsc        [])) = halt
--- Reset rendering to initial
-handleEvent (VtyEvent (V.EvKey V.KEnter      [])) = do
-  (MkBDPTRenderState _ _ scene primitiveIdx) <- get
-  put $ MkBDPTRenderState 0 emptyImg scene primitiveIdx
+handleEvent (VtyEvent (V.EvKey (V.KChar 'r') [])) = updateChannelColor CCR
+handleEvent (VtyEvent (V.EvKey (V.KChar 'g') [])) = updateChannelColor CCG
+handleEvent (VtyEvent (V.EvKey (V.KChar 'b') [])) = updateChannelColor CCB
+handleEvent (VtyEvent (V.EvKey V.KLeft       [])) = editPrimitiveColor (-8)
+handleEvent (VtyEvent (V.EvKey V.KRight      [])) = editPrimitiveColor 8
 handleEvent (MouseUp ClickableImage _ (Location (x, y))) = do
-  (MkBDPTRenderState sampleIdx img scene _) <- get
+  (MkBDPTRenderState sampleIdx img scene _ colorChannel) <- get
   -- Each "pixel" is made up of 2 chars, so divide x coord by 2
   let coords = (x `div` 2, height-y)
   let primitiveIdx = rayCastPrimitive test2 coords (width, height)
-  put $ MkBDPTRenderState sampleIdx img scene primitiveIdx
+  put $ MkBDPTRenderState sampleIdx img scene primitiveIdx colorChannel
 handleEvent _ = return ()
 
 -- The attribute map cannot support 255^3 color combinations, so specify

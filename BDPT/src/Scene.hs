@@ -9,6 +9,7 @@ module Scene
     , Scene(..),
     render,
     rayCastPrimitive,
+    updateSphere,
     test2
     ) where
 
@@ -177,8 +178,6 @@ rayCastPrimitive s (img_x, img_y) (w, h) = do
   let ray = raygen cameraFrame img_x img_y
   intersection <- traceRayPrimal ray s
   return $ prim_idx intersection
-
-
 
 traceRayPrimal :: Ray -> Scene -> Maybe Intersection
 traceRayPrimal r s =
