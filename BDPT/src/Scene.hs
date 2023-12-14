@@ -128,41 +128,42 @@ data Mesh = Mesh {
     colors   :: [V3 Float]
 } deriving (Eq, Show)
 
--- define point light
-data Light = PointLight
+data AreaLight = AreaLight
   { lightPosition :: V3 Float  -- Position of the light source
-  , lightColor :: V3 Float       -- Color of the light
+  , lightNormal :: V3 Float   -- Normal vector of the light surface
+  , lightColor :: V3 Float      -- Color of the light
   , lightIntensity :: Float  -- Intensity of the light
+  , lightSize :: Float       -- Size of the light source
   } deriving (Show)
-
--- Function to calculate the intensity of light at a given point
-calculateLightIntensity :: Light -> V3 Float -> Float
-calculateLightIntensity light point =
-  let distance = dist (lightPosition light) point
-  in lightIntensity light / (distance * distance)
 
 
 data Scene = Scene {
-    primitives :: [Sphere]
-    -- lights     :: [Primitive]
-} deriving (Eq, Show)
+    primitives :: [Sphere],
+    light     ::  AreaLight
+} deriving (Show)
+al = AreaLight (V3 0 (sphere_y+5) 0) (V3 0 (-1) 0) (V3 1 1 1) 1 1
+
 
 sphere_y :: Float
 sphere_y = -1.8
 test2 :: Scene
-test2 = Scene [bottom, backWall, leftWall, rightWall, top, Sphere (V3 1 (sphere_y+1) 0) 1 (V3 1 0 0), Sphere (V3 0 sphere_y 0) 1 (V3 0 1 0), Sphere (V3 2 sphere_y 0) 1 (V3 0 0 1)]
+test2 = Scene [bottom, backWall, leftWall, rightWall, top, area_light, Sphere (V3 1 (sphere_y+1) 0) 1 (V3 1 0 0), Sphere (V3 0 sphere_y 0) 1 (V3 0 1 0), Sphere (V3 2 sphere_y 0) 1 (V3 0 0 1)] al
 rightWall = Sphere (V3 (1e5) 50 (-2e5)) 1.3e5 (V3 0.25 0.25 0.75)
 leftWall = Sphere (V3 (-1e5) 50 (-2e5)) 1.3e5 (V3 0.75 0.25 0.25)
 backWall = Sphere (V3 0 00 (-2e5)) 1.3e5 (V3 0.75 0.75 0.75)
 bottom = Sphere (V3 50 (-1.08e5) 150) 1e5 (V3 0.75 0.75 0.75)
 top = Sphere (V3 0 (1e5) (-2.2e5)) 1.6e5 (V3 0.75 0.75 0.75)
+area_light = Sphere (V3 0 (sphere_y+5) 0) 0.5 (V3 1 1 1)
+
+
+
 
 updateSphere :: Scene -> Int -> Sphere -> Scene
 updateSphere s prim_id new_prim =
   let
     (left, right) = splitAt prim_id (primitives s)
   in
-    Scene (left ++ [new_prim] ++ (tail right))
+    Scene (left ++ [new_prim] ++ (tail right)) (light s)
 
 -- can define a function to update lighting in the same way
 -- updateLight :: Scene -> Int -> Light -> Scene
