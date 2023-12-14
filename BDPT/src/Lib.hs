@@ -120,7 +120,7 @@ drawUI bdptRS =
         str "Esc:               Quit",
         str "Left Click:        Select object to edit",
         str "R, G, B:           Select color channel to edit",
-        str "Left/Right Arrow:  Increase/Decrease selected color channel"
+        str "Up/Down Arrow:     Increase/Decrease color channel"
       ])
     ])
   ]
@@ -163,8 +163,8 @@ handleEvent (VtyEvent (V.EvKey V.KEsc        [])) = halt
 handleEvent (VtyEvent (V.EvKey (V.KChar 'r') [])) = updateChannelColor CCR
 handleEvent (VtyEvent (V.EvKey (V.KChar 'g') [])) = updateChannelColor CCG
 handleEvent (VtyEvent (V.EvKey (V.KChar 'b') [])) = updateChannelColor CCB
-handleEvent (VtyEvent (V.EvKey V.KLeft       [])) = editPrimitiveColor (-8)
-handleEvent (VtyEvent (V.EvKey V.KRight      [])) = editPrimitiveColor 8
+handleEvent (VtyEvent (V.EvKey V.KDown       [])) = editPrimitiveColor (-8)
+handleEvent (VtyEvent (V.EvKey V.KUp         [])) = editPrimitiveColor 8
 handleEvent (MouseUp ClickableImage _ (Location (x, y))) = do
   (MkBDPTRenderState sampleIdx img scene _ colorChannel) <- get
   -- Each "pixel" is made up of 2 chars, so divide x coord by 2
