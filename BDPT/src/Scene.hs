@@ -56,7 +56,8 @@ mapWithIndex f xs = map (\(index, element) -> f index element) (zip [0..] xs)
 
 data Ray = Ray {
     origin :: V3 Float,
-    direction :: V3 Float
+    direction :: V3 Float,
+    max_t :: Float
 } deriving (Eq, Show)
 
 data Camera = Camera {
@@ -103,7 +104,7 @@ instance Primitive Sphere where
           t1 = tca + thc
           intersect_t = if (min t0 t1) >= 0 then min t0 t1 else max t0 t1
         in
-          if intersect_t < 0 then
+          if intersect_t < 0 || intersect_t > max_t r then
             Nothing
           else
             Just Intersection {
@@ -158,7 +159,7 @@ sphere_y :: Float
 sphere_y = -1.8
 test2 :: Scene
 -- test2 = Scene [bottom, backWall, leftWall, rightWall, top, area_light, Sphere (V3 1 (sphere_y+1) 0) 1 (V3 1 0 0), Sphere (V3 0 sphere_y 0) 1 (V3 0 1 0), Sphere (V3 2 sphere_y 0) 1 (V3 0 0 1)] al
-test2 = Scene [bottom, backWall, leftWall, rightWall, top, area_light, Sphere (V3 1 (sphere_y+1) 0) 1 (V3 1 0 0), Sphere (V3 0 sphere_y 0) 1 (V3 0 1 0), Sphere (V3 2 sphere_y 0) 1 (V3 0 0 1)]
+test2 = Scene [bottom, backWall, leftWall, rightWall, top, Sphere (V3 1 (sphere_y+1) 0) 1 (V3 1 0 0), Sphere (V3 0 sphere_y 0) 1 (V3 0 1 0), Sphere (V3 2 sphere_y 0) 1 (V3 0 0 1)]
 rightWall = Sphere (V3 (1e5) 50 (-2e5)) 1.3e5 (V3 0.25 0.25 0.75)
 leftWall = Sphere (V3 (-1e5) 50 (-2e5)) 1.3e5 (V3 0.75 0.25 0.25)
 backWall = Sphere (V3 0 00 (-2e5)) 1.3e5 (V3 0.75 0.75 0.75)
@@ -230,7 +231,7 @@ setupCameraFrame w h =
 raygen :: CameraFrame -> Int -> Int -> Ray
 raygen (camera_center, pixel00_loc, (pixel_delta_u, pixel_delta_v)) x y =
   let pixel_loc = pixel00_loc + (V3 (pixel_delta_u * (fromIntegral x + 0.5)) (pixel_delta_v * (fromIntegral y + 0.5)) 0)
-      ray = Ray camera_center (v3Normalize (pixel_loc - camera_center))
+      ray = Ray camera_center (v3Normalize (pixel_loc - camera_center)) 1e99
   in
     ray
 
@@ -253,22 +254,27 @@ calculatePointLightIntensity light point =
 traceRay :: Ray -> Scene -> Int -> Int -> V3 Float
 traceRay r s d seed =
   case closestHit r s of
-    Just intersection -> 
-        let hitColor = color intersection
-            hitPoint = origin r + (direction r `v3Times` t intersection)
-            hitNormal = normal intersection
-            light = PointLight (V3 0 (sphere_y + 5) 0) (V3 1 1 1) 10
-            rm = rotationMatrix hitNormal
-            newDirection = randomDirection $ mkStdGen (seed + d)
-            newDirectionRotated = rm !* newDirection
-            newRay = Ray (hitPoint + newDirectionRotated `v3Times` 1e-3) (v3Normalize newDirectionRotated)
-            -- lightDirection = v3Normalize (lightPosition light - hitPoint)
-            brdf = hitColor -- `v3Times` max (hitNormal `v3Dot` lightDirection) 0.0
-        in
-          if d == 0 then
-            brdf * lightColor light `v3Times` lightIntensity light
-          else
-            brdf * traceRay newRay s (d - 1) seed
+    Just intersection -> do
+      let hitColor = color intersection
+      let hitPoint = origin r + (direction r `v3Times` t intersection)
+      let hitNormal = normal intersection
+
+      let brdf = hitColor -- `v3Times` max (hitNormal `v3Dot` lightDirection) 0.0
+      if d == 0 then do
+        let light = PointLight (V3 0 (sphere_y + 5) 0) (V3 1 1 1) 100
+        let lightDirection = v3Normalize (lightPosition light - hitPoint)
+        let lightDistance = dist (lightPosition light) hitPoint
+        let shadowRay = Ray (hitPoint + lightDirection `v3Times` 1e-3) lightDirection lightDistance
+        if anyHit shadowRay s then
+          V3 0 0 0
+        else
+          brdf * lightColor light `v3Times` lightIntensity light
+      else do
+        let rm = rotationMatrix hitNormal
+        let newDirection = randomDirection $ mkStdGen (seed + d)
+        let newDirectionRotated = rm !* newDirection
+        let newRay = Ray (hitPoint + newDirectionRotated `v3Times` 1e-3) (v3Normalize newDirectionRotated) 1e99
+        brdf * traceRay newRay s (d - 1) seed
     Nothing -> V3 0 0 0
 
 randomDirection :: StdGen -> V3 Float
