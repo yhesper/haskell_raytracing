@@ -9,7 +9,6 @@ module Scene
     , Scene(..),
     render,
     rayCastPrimitive,
-    test1,
     test2
     ) where
 
@@ -146,18 +145,17 @@ data Scene = Scene {
     -- lights     :: [Primitive]
 } deriving (Eq, Show)
 
+sphere_y :: Float
+sphere_y = -1.8
 test2 :: Scene
-test2 = Scene [Sphere (V3 1 1 0) 1 (V3 1 0 0), Sphere (V3 0 0 0) 1 (V3 0 1 0), Sphere (V3 2 0 0) 1 (V3 0 0 1)]
+test2 = Scene [bottom, backWall, leftWall, rightWall, top, Sphere (V3 1 (sphere_y+1) 0) 1 (V3 1 0 0), Sphere (V3 0 sphere_y 0) 1 (V3 0 1 0), Sphere (V3 2 sphere_y 0) 1 (V3 0 0 1)]
 -- test1 = Scene [Sphere (V3 0 0 0) 1 (V3 0 1 0)]
-leftWall = Sphere (V3 (1e5+1) 40.8 81.6) 1 (V3 0.75 0.25 0.25)
-rightWall = Sphere (V3 (-1e5+99) 40.8 81.6) 1 (V3 0.25 0.25 0.75)
-backWall = Sphere (V3 50 40.8 1e5) 1 (V3 0.75 0.75 0.75)
-frontWall = Sphere (V3 50 40.8 (-1e5+170)) 1 (V3 0 0 0)
-bottom = Sphere (V3 50 1e5 81.6) 1 (V3 0.75 0.75 0.75)
-top = Sphere (V3 50 (-1e5+81.6) 81.6) 1 (V3 0.75 0.75 0.75)
-test1 :: Scene
-test1 = Scene [leftWall, rightWall, backWall, frontWall, bottom, top]
-
+rightWall = Sphere (V3 (1e5) 50 (-2e5)) 1.3e5 (V3 0.25 0.25 0.75)
+leftWall = Sphere (V3 (-1e5) 50 (-2e5)) 1.3e5 (V3 0.75 0.25 0.25)
+-- rightWall = Sphere (V3 (-1e5+99) 40.8 81.6) 1e5 (V3 0.25 0.25 0.75)
+backWall = Sphere (V3 0 00 (-2e5)) 1.3e5 (V3 0.75 0.75 0.75)
+bottom = Sphere (V3 50 (-1.08e5) 150) 1e5 (V3 0.75 0.75 0.75)
+top = Sphere (V3 0 (1e5) (-2.2e5)) 1.6e5 (V3 0.75 0.75 0.75)
 
 updateSphere :: Scene -> Int -> Sphere -> Scene
 updateSphere s prim_id new_prim =

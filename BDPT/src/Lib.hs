@@ -45,9 +45,9 @@ initialState =
   Nothing
 
 height :: Int
-height = 80
+height = 40
 width :: Int
-width = 80
+width = 40
 spp :: Int
 spp = 32
 
