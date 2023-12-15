@@ -256,7 +256,7 @@ bdptApp = do
   chan <- newBChan 1
   void . forkIO $ forever $ do
     writeBChan chan Tick
-    threadDelay $ round (167e3 :: Float) -- Render at up to 60 fps - 16.7 ms per tick
+    threadDelay $ round (16.7e3 :: Float) -- Render at up to 60 fps - 16.7 ms per tick
 
   -- Run the Brick app
   let builder = V.mkVty V.defaultConfig

@@ -56,7 +56,7 @@ v3Normalize v = v `v3Div` (v3Norm v)
 
 dist :: V3 Float -> V3 Float -> Float
 dist (V3 x1 y1 z1) (V3 x2 y2 z2) =
-  sqrt ((x2 - x1)^2 + (y2 - y1)^2 + (z2 - z1)^2)
+  sqrt ((x2 - x1)*(x2 - x1) + (y2 - y1)*(y2 - y1) + (z2 - z1)*(z2 - z1))
 
 mapWithIndex :: (Int -> a -> b) -> [a] -> [b]
 mapWithIndex f xs = map (\(index, element) -> f index element) (zip [0..] xs)
@@ -208,12 +208,12 @@ data Scene = Scene {
 
 sphere_y :: Float
 sphere_y = -1.8
-scale = 5
+
 cornellBox :: Scene
 pps = [Primitive sphereYellow, Primitive sphereGreen, Primitive spherePurple, Primitive backWallTriangle0, Primitive backWallTriangle1, Primitive topWallTriangle0, Primitive topWallTriangle1, Primitive botWallTriangle0, Primitive botWallTriangle1, Primitive leftWallTriangle0, Primitive leftWallTriangle1, Primitive rightWallTriangle0, Primitive rightWallTriangle1]
 lts = [Primitive sphereWhite]
 cornellBox = Scene pps lts
-diffuseWhiteColor = V3 0.25 0.25 0.25
+diffuseWhiteColor = V3 1 1 1
 diffuseBlueColor = V3 0 0 0.75
 diffuseRedColor = V3 0.75 0 0
 tri = Triangle (V3 0 (-1) (-2)) (V3 0 (-1) 1) (V3 3 (-1) 1) (V3 0 1 0)
@@ -295,7 +295,7 @@ raygen (camera_center, pixel00_loc, (pixel_delta_u, pixel_delta_v)) x y =
   in
     ray
 
-maxDepth = 2
+maxDepth = 3
 
 render :: Scene -> Int -> Int -> Int -> [V3 Float]
 render s w h sampleIdx =
@@ -334,9 +334,10 @@ traceRay r s d seed =
         let hitColor = color intersection
         let hitPoint = origin r + (direction r `v3Times` t intersection)
         let hitNormal = normal intersection
-        let light = PointLight (V3 0 3 0) (V3 1 1 1) 10
+        let light = PointLight (center sphereWhite) (V3 1 1 1) 100
         let lightDirection = v3Normalize (lightPosition light - hitPoint)
-        let neeColor = hitColor / pi * (nee s light hitPoint `v3Times` max 0 (hitNormal `v3Dot` lightDirection))
+        let lightDistance = dist (lightPosition light) hitPoint
+        let neeColor = (hitColor / pi * (nee s light hitPoint `v3Times` max 0 (hitNormal `v3Dot` lightDirection))) `v3Times` (1.0 / (lightDistance*lightDistance))
 
         let brdf = hitColor
         if d == 0 then do
@@ -346,8 +347,7 @@ traceRay r s d seed =
           let newDirection = randomDirection $ mkStdGen (seed + d)
           let newDirectionRotated = rm !* newDirection
           let newRay = Ray (hitPoint + newDirectionRotated `v3Times` 1e-3) (v3Normalize newDirectionRotated) 1e99
-          let lightDirection = v3Normalize (lightPosition light - hitPoint)
-          scale * brdf * (traceRay newRay s (d - 1) seed) + neeColor
+          brdf * traceRay newRay s (d - 1) seed + neeColor
       Nothing -> V3 0 0 0
 
 randomDirection :: StdGen -> V3 Float
