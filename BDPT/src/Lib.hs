@@ -45,7 +45,7 @@ initialState =
   MkBDPTRenderState
   0
   emptyImg
-  test2
+  cornellBox
   Nothing
   Nothing
   CCR
@@ -179,9 +179,6 @@ accumulateImg old new sampleIdx =
   in
     accumulated
 
-d :: Float
-d = 0.2
-
 handleEvent :: BrickEvent Name Tick -> EventM Name BDPTRenderState ()
 handleEvent (AppEvent Tick) = do
   (MkBDPTRenderState sampleIdx img scene pixel primitiveIdx colorChannel dp) <- get
@@ -202,8 +199,10 @@ handleEvent (MouseUp ClickableImage _ (Location (x, y))) = do
   (MkBDPTRenderState sampleIdx img scene _ _ colorChannel dp) <- get
   -- Each "pixel" is made up of 2 chars, so divide x coord by 2
   let coords = (x `div` 2, height-y-1)
-  let primitiveIdx = rayCastPrimitive test2 coords (width, height)
+  let primitiveIdx = rayCastPrimitive scene coords (width, height)
   put $ MkBDPTRenderState sampleIdx img scene (Just coords) primitiveIdx colorChannel dp
+d :: Float
+d = 0.2
 handleEvent (VtyEvent (V.EvKey (V.KChar 'w') [])) = editPrimitivePosition (V2 0 d)
 handleEvent (VtyEvent (V.EvKey (V.KChar 'a') [])) = editPrimitivePosition (V2 (-d) 0)
 handleEvent (VtyEvent (V.EvKey (V.KChar 's') [])) = editPrimitivePosition (V2 0 (-d))

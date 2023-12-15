@@ -9,7 +9,7 @@ module Scene
     , Scene(..),
     render,
     rayCastPrimitive,
-    test2,
+    cornellBox,
     v3Times,
     updatePrimitive,
     primitiveColor,
@@ -26,7 +26,6 @@ import Linear.V3
 import Linear.Matrix
 import System.Random
 import Data.Maybe
-import GHC.Base (undefined)
 import Brick (clamp)
 
 data ColorChannel = CCR | CCG | CCB
@@ -197,21 +196,6 @@ instance Primitive_ Triangle where
   updatePrimitiveColor t _ _ = t
   updatePrimitivePosition t _ _ = t
 
-data Mesh = Mesh {
-    vertices :: [V3 Float],
-    indices  :: [Int],
-    normals  :: [V3 Float],
-    colors   :: [V3 Float]
-} deriving (Eq, Show)
-
--- data AreaLight = AreaLight
---   { lightPosition :: V3 Float  -- Position of the light source
---   , lightNormal :: V3 Float   -- Normal vector of the light surface
---   , lightColor :: V3 Float      -- Color of the light
---   , lightIntensity :: Float  -- Intensity of the light
---   , lightSize :: Float       -- Size of the light source
---   } deriving (Show)
-
 data PointLight = PointLight
   { lightPosition :: V3 Float  -- Position of the light source
   , lightColor :: V3 Float      -- Color of the light
@@ -222,16 +206,14 @@ data Scene = Scene {
     primitives :: [Primitive],
     lights     :: [Primitive]
 }
--- al = AreaLight (V3 0 (sphere_y+5) 0) (V3 0 (-1) 0) (V3 1 1 1) 1 1
-
 
 sphere_y :: Float
 sphere_y = -1.8
 scale = 5
-test2 :: Scene
+cornellBox :: Scene
 pps = [Primitive sphereYellow, Primitive sphereGreen, Primitive spherePurple, Primitive backWallTriangle0, Primitive backWallTriangle1, Primitive topWallTriangle0, Primitive topWallTriangle1, Primitive botWallTriangle0, Primitive botWallTriangle1, Primitive leftWallTriangle0, Primitive leftWallTriangle1, Primitive rightWallTriangle0, Primitive rightWallTriangle1]
 lts = [Primitive sphereWhite]
-test2 = Scene pps lts
+cornellBox = Scene pps lts
 diffuseWhiteColor = V3 0.25 0.25 0.25
 diffuseBlueColor = V3 0 0 0.75
 diffuseRedColor = V3 0.75 0 0
