@@ -31,6 +31,7 @@ data BDPTRenderState = MkBDPTRenderState {
   _sampleIdx :: Int,
   _img :: Image,
   _scene :: Scene.Scene,
+  _selectedPixel :: Maybe (Int, Int),
   _selectedPrimitiveIdx :: Maybe Int,
   _selectedColorChannel :: ColorChannel,
   _dP :: V2 Float
@@ -45,6 +46,7 @@ initialState =
   0
   emptyImg
   test2
+  Nothing
   Nothing
   CCR
   (V2 0 0)
@@ -74,9 +76,15 @@ drawPixel (V3 r g b) = withAttr (attrName (rgbToAttrName r' g' b')) (str "██
 drawSampleProgress :: Int -> Widget Name
 drawSampleProgress s = str ("Progress: " ++ show s ++ "/" ++ show spp ++ " spp")
 
-drawSelectedPrimitive :: Scene -> Maybe Int -> Widget Name
-drawSelectedPrimitive scene idx = vBox $ str ("Selected primitive: " ++ maybe "None" show idx) : primitiveInfo
+drawSelectedPixelPrimitive :: Scene -> Maybe (Int, Int) -> Maybe Int -> Widget Name
+drawSelectedPixelPrimitive scene pixel idx =
+  vBox $
+  pixelInfo ++
+  [str ("Selected primitive: " ++ maybe "None" show idx)] ++
+  primitiveInfo
   where
+    pixelInfo = maybe [] drawPixelInfo pixel
+    drawPixelInfo (x, y) = [str $ "Selected pixel: " ++ show x ++ ", " ++ show y]
     primitiveInfo = maybe [] drawPrimitiveInfo idx
     drawPrimitiveInfo i =
       let primitive = primitives scene !! i
@@ -111,7 +119,7 @@ drawUI bdptRS =
         str "Scene Editing:",
         str " ",
         drawSelectedColorChannel (_selectedColorChannel bdptRS),
-        drawSelectedPrimitive (_scene bdptRS) (_selectedPrimitiveIdx bdptRS)
+        drawSelectedPixelPrimitive (_scene bdptRS) (_selectedPixel bdptRS) (_selectedPrimitiveIdx bdptRS)
       ]),
       C.vCenter
       (vBox [
@@ -128,8 +136,8 @@ drawUI bdptRS =
 
 updateChannelColor :: ColorChannel -> EventM Name BDPTRenderState ()
 updateChannelColor colorChannel = do
-  (MkBDPTRenderState sampleIdx img scene primitiveIdx _ dp) <- get
-  put $ MkBDPTRenderState sampleIdx img scene primitiveIdx colorChannel dp
+  (MkBDPTRenderState sampleIdx img scene pixel primitiveIdx _ dp) <- get
+  put $ MkBDPTRenderState sampleIdx img scene pixel primitiveIdx colorChannel dp
 
 updateColorChannel :: Float -> Int -> Float
 updateColorChannel c delta = clamp 0 255 (c*255 + (fromIntegral delta :: Float)) / 255
@@ -141,25 +149,25 @@ updateColor CCB (V3 r g b) delta = V3 r g (updateColorChannel b delta)
 
 editPrimitiveColor :: Int -> EventM Name BDPTRenderState ()
 editPrimitiveColor delta = do
-  (MkBDPTRenderState _ img scene primitiveIdx colorChannel dp) <- get
+  (MkBDPTRenderState _ img scene pixel primitiveIdx colorChannel dp) <- get
   case primitiveIdx of
     Nothing -> return ()
     Just idx -> do
       let prim = primitives scene !! idx
       let updatePrim = updatePrimitiveColor prim colorChannel delta
       let updatedScene = updatePrimitive scene idx updatePrim
-      put $ MkBDPTRenderState 0 img updatedScene primitiveIdx colorChannel dp
+      put $ MkBDPTRenderState 0 img updatedScene pixel primitiveIdx colorChannel dp
 
 editPrimitivePosition :: V2 Float -> EventM Name BDPTRenderState ()
 editPrimitivePosition (V2 dx dy) = do
-  (MkBDPTRenderState _ img scene primitiveIdx colorChannel dp) <- get
+  (MkBDPTRenderState _ img scene pixel primitiveIdx colorChannel dp) <- get
   case primitiveIdx of
     Nothing -> return ()
     Just idx -> do
       let prim = primitives scene !! idx
       let updatePrim = updatePrimitivePosition prim dx dy
       let updatedScene = updatePrimitive scene idx updatePrim
-      put $ MkBDPTRenderState 0 img updatedScene primitiveIdx colorChannel (V2 0 0)
+      put $ MkBDPTRenderState 0 img updatedScene pixel primitiveIdx colorChannel (V2 0 0)
 
 accumulateImg :: Image -> Image -> Int -> Image
 accumulateImg old new sampleIdx =
@@ -176,13 +184,14 @@ d = 0.2
 
 handleEvent :: BrickEvent Name Tick -> EventM Name BDPTRenderState ()
 handleEvent (AppEvent Tick) = do
-  (MkBDPTRenderState sampleIdx img scene primitiveIdx colorChannel dp) <- get
+  (MkBDPTRenderState sampleIdx img scene pixel primitiveIdx colorChannel dp) <- get
   if sampleIdx >= spp then
     return ()
   else do
     let newImg = Scene.render scene width height sampleIdx
     let accumulatedImg = accumulateImg img newImg sampleIdx
-    put $ MkBDPTRenderState (sampleIdx+1) accumulatedImg scene primitiveIdx colorChannel dp
+    put $ MkBDPTRenderState (sampleIdx+1) accumulatedImg scene pixel primitiveIdx colorChannel dp
+  
 handleEvent (VtyEvent (V.EvKey V.KEsc        [])) = halt
 handleEvent (VtyEvent (V.EvKey (V.KChar 'r') [])) = updateChannelColor CCR
 handleEvent (VtyEvent (V.EvKey (V.KChar 'g') [])) = updateChannelColor CCG
@@ -190,11 +199,11 @@ handleEvent (VtyEvent (V.EvKey (V.KChar 'b') [])) = updateChannelColor CCB
 handleEvent (VtyEvent (V.EvKey V.KDown       [])) = editPrimitiveColor (-8)
 handleEvent (VtyEvent (V.EvKey V.KUp         [])) = editPrimitiveColor 8
 handleEvent (MouseUp ClickableImage _ (Location (x, y))) = do
-  (MkBDPTRenderState sampleIdx img scene _ colorChannel dp) <- get
+  (MkBDPTRenderState sampleIdx img scene _ _ colorChannel dp) <- get
   -- Each "pixel" is made up of 2 chars, so divide x coord by 2
-  let coords = (x `div` 2, height-y)
+  let coords = (x `div` 2, height-y-1)
   let primitiveIdx = rayCastPrimitive test2 coords (width, height)
-  put $ MkBDPTRenderState sampleIdx img scene primitiveIdx colorChannel dp
+  put $ MkBDPTRenderState sampleIdx img scene (Just coords) primitiveIdx colorChannel dp
 handleEvent (VtyEvent (V.EvKey (V.KChar 'w') [])) = editPrimitivePosition (V2 0 d)
 handleEvent (VtyEvent (V.EvKey (V.KChar 'a') [])) = editPrimitivePosition (V2 (-d) 0)
 handleEvent (VtyEvent (V.EvKey (V.KChar 's') [])) = editPrimitivePosition (V2 0 (-d))
