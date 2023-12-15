@@ -194,7 +194,7 @@ instance Primitive_ Triangle where
   volume t = undefined
   area t = undefined
   primitiveColor t = triangle_color t
-  updatePrimitiveColor t chan delta = Triangle (v1 t) (v2 t) (v3 t) (updateColor chan (triangle_color t) delta)
+  updatePrimitiveColor t _ _ = t
   updatePrimitivePosition t _ _ = t
 
 data Mesh = Mesh {
