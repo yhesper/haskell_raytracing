@@ -14,6 +14,7 @@ module Scene
     updatePrimitive,
     primitiveColor,
     updatePrimitiveColor,
+    updatePrimitivePosition,
     ColorChannel(..),
     ) where
 
@@ -44,6 +45,8 @@ v3Div (V3 x y z) s = V3 (x / s) (y / s) (z / s)
 v3Times (V3 x y z) s = V3 (x * s) (y * s) (z * s)
 
 v3Dot (V3 x1 y1 z1) (V3 x2 y2 z2) = x1 * x2 + y1 * y2 + z1 * z2
+
+v3Add (V3 x1 y1 z1) (V3 x2 y2 z2) = V3 (x1 + x2) (y1 + y2) (z1 + z2)
 
 v3Cross (V3 x1 y1 z1) (V3 x2 y2 z2) = V3 (y1 * z2 - z1 * y2) (z1 * x2 - x1 * z2) (x1 * y2 - y1 * x2)
 
@@ -90,6 +93,7 @@ class Primitive_ a where
   area :: a -> Float
   primitiveColor :: a -> V3 Float
   updatePrimitiveColor :: a -> ColorChannel -> Int -> a
+  updatePrimitivePosition :: a -> Float -> Float -> a
 
 data Primitive = forall a. Primitive_ a => Primitive a
 
@@ -99,6 +103,7 @@ instance Primitive_ Primitive where
   area (Primitive p) = area p
   primitiveColor (Primitive p) = primitiveColor p
   updatePrimitiveColor (Primitive p) c d = Primitive (updatePrimitiveColor p c d)
+  updatePrimitivePosition (Primitive p) dx dy = Primitive (updatePrimitivePosition p dx dy)
 
 data Sphere = Sphere {
     center :: V3 Float,
@@ -136,6 +141,7 @@ instance Primitive_ Sphere where
   area s = 4 * pi * (radius s) * (radius s)
   primitiveColor s = sphere_color s
   updatePrimitiveColor s chan delta = Sphere (center s) (radius s) (updateColor chan (sphere_color s) delta)
+  updatePrimitivePosition s dx dy = Sphere ((center s) `v3Add` (V3 dx dy 0)) (radius s) (sphere_color s)
 
 data Triangle = Triangle {
     v1 :: V3 Float,
@@ -189,6 +195,7 @@ instance Primitive_ Triangle where
   area t = undefined
   primitiveColor t = triangle_color t
   updatePrimitiveColor t chan delta = Triangle (v1 t) (v2 t) (v3 t) (updateColor chan (triangle_color t) delta)
+  updatePrimitivePosition t _ _ = t
 
 data Mesh = Mesh {
     vertices :: [V3 Float],
