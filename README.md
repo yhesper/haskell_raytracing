@@ -1,5 +1,7 @@
 # haskell_raytracing
 
+![teaser](teaser.png)
+
 ## Project Idea: Implementing a Bidirectional Path Tracing Renderer in Haskell
 
 We proposed to implement a physically-based renderer within the terminal using Haskell. Ray tracing is a very classic computer graphics algorithm that renders a 3D scene to an image by simulating light rays scattering and bouncing within the scene, recording the light carried by the rays at pixels in the image. Ray tracing is naturally recursive, requires a set of abstract data types (ADT) like trees and maps and also needs to maintain rendering states, which makes this application a perfect testbed for functional programming. We will specifically implement the bidirectional path tracing algorithm, which is an advanced form of ray tracing that forms complete light paths from the camera to light sources by tracing rays *bidirectionally*, from both the camera and the light sources, as opposed to *unidirectionally* from only the camera, as in standard path tracers.
