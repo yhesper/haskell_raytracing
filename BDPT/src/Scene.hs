@@ -219,22 +219,28 @@ data PointLight = PointLight
   } deriving (Show)
 
 data Scene = Scene {
-    primitives :: [Primitive]
-    -- light     ::  AreaLight
+    primitives :: [Primitive],
+    lights     :: [Primitive]
 }
 -- al = AreaLight (V3 0 (sphere_y+5) 0) (V3 0 (-1) 0) (V3 1 1 1) 1 1
 
 
 sphere_y :: Float
 sphere_y = -1.8
--- test2 :: Scene
+scale = 5
 test2 :: Scene
--- pps = [Primitive backWallTriangle0, Primitive backWallTriangle1, Primitive topWallTriangle0, Primitive topWallTriangle1, Primitive botWallTriangle0, Primitive botWallTriangle1, Primitive leftWallTriangle0, Primitive leftWallTriangle1, Primitive rightWallTriangle0, Primitive rightWallTriangle1,Primitive (Sphere (V3 1 (sphere_y+1) 0) 1 (V3 1 0 0)), Primitive (Sphere (V3 0 sphere_y 0) 1 (V3 0 1 0)), Primitive (Sphere (V3 2 sphere_y 0) 1 (V3 0 0 1))]
-pps = [Primitive backWallTriangle0, Primitive backWallTriangle1, Primitive topWallTriangle0, Primitive topWallTriangle1, Primitive botWallTriangle0, Primitive botWallTriangle1, Primitive leftWallTriangle0, Primitive leftWallTriangle1, Primitive rightWallTriangle0, Primitive rightWallTriangle1,Primitive (Sphere (V3 1 (sphere_y+1) 0) 1 (V3 1 0 0))]
-test2 = Scene pps
+pps = [Primitive sphereYellow, Primitive sphereGreen, Primitive spherePurple, Primitive backWallTriangle0, Primitive backWallTriangle1, Primitive topWallTriangle0, Primitive topWallTriangle1, Primitive botWallTriangle0, Primitive botWallTriangle1, Primitive leftWallTriangle0, Primitive leftWallTriangle1, Primitive rightWallTriangle0, Primitive rightWallTriangle1]
+lts = [Primitive sphereWhite]
+test2 = Scene pps lts
 diffuseWhiteColor = V3 0.25 0.25 0.25
 diffuseBlueColor = V3 0 0 0.75
 diffuseRedColor = V3 0.75 0 0
+tri = Triangle (V3 0 (-1) (-2)) (V3 0 (-1) 1) (V3 3 (-1) 1) (V3 0 1 0)
+sphereYellow = Sphere (V3 1 (sphere_y+1) (-2)) 1 (V3 0 1 1)
+sphereGreen = Sphere (V3 0 (sphere_y-1) (-2)) 1 (V3 0 1 0)
+spherePurple = Sphere (V3 2.5 (sphere_y-1) (-3)) 1 (V3 0.75 0 1)
+sphereWhite = Sphere (V3 0 (sphere_y+5) (-1)) 0.3 (V3 1 1 1)
+
 backWallTriangle0 = Triangle (V3 (10) 10 (-4)) (V3 (-10) 10 (-4)) (V3 (-10) (-10) (-4)) diffuseWhiteColor
 backWallTriangle1 = Triangle (V3 (10) 12 (-4)) (V3 (-10) (-8) (-4)) (V3 10 (-8) (-4)) diffuseWhiteColor
 topWallTriangle0 = Triangle  (V3 (10) 4 (-4)) (V3 (-10) 4 (-4)) (V3 10 4 8) diffuseWhiteColor
@@ -249,29 +255,13 @@ leftWallTriangle0 = Triangle  (V3 (-4) 10 (-10)) (V3 (-4) (-10) (-10)) (V3 (-4) 
 leftWallTriangle1 = Triangle  (V3 (-4) (12) (10)) (V3 (-4) (-8) (-10)) (V3 (-4) (-8) (10)) diffuseBlueColor
 
 
-rightWall = Sphere (V3 (1e5) 50 (-2e5)) 1.3e5 (V3 0.25 0.25 0.75)
-leftWall = Sphere (V3 (-1e5) 50 (-2e5)) 1.3e5 (V3 0.75 0.25 0.25)
-backWall = Sphere (V3 0 00 (-2e5)) 1.3e5 (V3 0.75 0.75 0.75)
-bottom = Sphere (V3 50 (-1.08e5) 150) 1e5 (V3 0.75 0.75 0.75)
-top = Sphere (V3 0 (1e5) (-2.2e5)) 1.6e5 (V3 0.75 0.75 0.75)
-area_light = Sphere (V3 0 (sphere_y+5) 0) 0.5 (V3 1 1 1)
-
-
-
 updatePrimitive :: Scene -> Int -> Primitive -> Scene
 updatePrimitive s prim_id new_prim =
   let
     (left, right) = splitAt prim_id (primitives s)
   in
-    -- Scene (left ++ [new_prim] ++ (tail right)) (light s)
-    Scene (left ++ [new_prim] ++ (tail right))
+    Scene (left ++ [new_prim] ++ (tail right)) (lights s)
 
--- can define a function to update lighting in the same way
--- updateLight :: Scene -> Int -> Light -> Scene
-
--- copied from render function
--- changed pixel_loc
--- used monads
 rayCastPrimitive :: Scene -> (Int, Int) -> (Int, Int) -> Maybe Int
 rayCastPrimitive s (img_x, img_y) (w, h) = do
   let cameraFrame = setupCameraFrame w h
@@ -290,10 +280,10 @@ closestHit r s =
     else
       Nothing
 
-anyHit :: Ray -> Scene -> Bool
-anyHit r s =
+anyHit :: Ray -> [Primitive] -> Bool
+anyHit r ps =
   let
-    intersections = mapWithIndex (flip (intersect r)) (primitives s)
+    intersections = mapWithIndex (flip (intersect r)) (ps)
     valid_intersections = catMaybes intersections
   in
     not (null valid_intersections)
@@ -342,33 +332,42 @@ calculatePointLightIntensity light point =
   let distance = dist (lightPosition light) point
   in lightIntensity light / (distance * distance)
 
+
+nee :: Scene -> PointLight -> V3 Float -> V3 Float
+nee s light hitPoint = do
+  let lightDirection = v3Normalize (lightPosition light - hitPoint)
+  let lightDistance = dist (lightPosition light) hitPoint
+  let shadowRay = Ray (hitPoint + lightDirection `v3Times` 1e-3) lightDirection lightDistance
+  if anyHit shadowRay (primitives s) then
+    V3 0 0 0
+  else
+    lightColor light `v3Times` lightIntensity light
+
 traceRay :: Ray -> Scene -> Int -> Int -> V3 Float
 traceRay r s d seed =
-  case closestHit r s of
-    Just intersection -> do
-      let hitColor = color intersection
-      let hitPoint = origin r + (direction r `v3Times` t intersection)
-      let hitNormal = normal intersection
-
-      let brdf = hitColor
-      if d == 0 then do
-        let light = PointLight (V3 0 3 2) (V3 1 1 1) 10
+  if d == maxDepth - 1 && anyHit r (lights s) then do
+    V3 100 100 100
+  else
+    case closestHit r s of
+      Just intersection -> do
+        let hitColor = color intersection
+        let hitPoint = origin r + (direction r `v3Times` t intersection)
+        let hitNormal = normal intersection
+        let light = PointLight (V3 0 3 0) (V3 1 1 1) 10
         let lightDirection = v3Normalize (lightPosition light - hitPoint)
-        let lightDistance = dist (lightPosition light) hitPoint
-        let shadowRay = Ray (hitPoint + lightDirection `v3Times` 1e-3) lightDirection lightDistance
-        -- if False then
-        --   V3 0 0 0
-        if anyHit shadowRay s then
-          V3 0 0 0
-        else
-          brdf  * lightColor light `v3Times` lightIntensity light
-      else do
-        let rm = rotationMatrix hitNormal
-        let newDirection = randomDirection $ mkStdGen (seed + d)
-        let newDirectionRotated = rm !* newDirection
-        let newRay = Ray (hitPoint + newDirectionRotated `v3Times` 1e-3) (v3Normalize newDirectionRotated) 1e99
-        brdf * traceRay newRay s (d - 1) seed
-    Nothing -> V3 0 0 0
+        let neeColor = hitColor / pi * (nee s light hitPoint `v3Times` max 0 (hitNormal `v3Dot` lightDirection))
+
+        let brdf = hitColor
+        if d == 0 then do
+            neeColor
+        else do
+          let rm = rotationMatrix hitNormal
+          let newDirection = randomDirection $ mkStdGen (seed + d)
+          let newDirectionRotated = rm !* newDirection
+          let newRay = Ray (hitPoint + newDirectionRotated `v3Times` 1e-3) (v3Normalize newDirectionRotated) 1e99
+          let lightDirection = v3Normalize (lightPosition light - hitPoint)
+          scale * brdf * (traceRay newRay s (d - 1) seed) + neeColor
+      Nothing -> V3 0 0 0
 
 randomDirection :: StdGen -> V3 Float
 randomDirection gen =
