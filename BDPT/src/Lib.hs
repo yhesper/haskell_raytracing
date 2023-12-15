@@ -32,8 +32,7 @@ data BDPTRenderState = MkBDPTRenderState {
   _img :: Image,
   _scene :: Scene.Scene,
   _selectedPrimitiveIdx :: Maybe Int,
-  _selectedColorChannel :: ColorChannel,
-  _deltaP :: V3 Float
+  _selectedColorChannel :: ColorChannel
 }
 
 emptyImg :: Image
@@ -47,7 +46,6 @@ initialState =
   test2
   Nothing
   CCR
-  (V3 0 0 0)
 
 height :: Int
 height = 40
@@ -128,8 +126,8 @@ drawUI bdptRS =
 
 updateChannelColor :: ColorChannel -> EventM Name BDPTRenderState ()
 updateChannelColor colorChannel = do
-  (MkBDPTRenderState sampleIdx img scene primitiveIdx _ dP) <- get
-  put $ MkBDPTRenderState sampleIdx img scene primitiveIdx colorChannel dP
+  (MkBDPTRenderState sampleIdx img scene primitiveIdx _) <- get
+  put $ MkBDPTRenderState sampleIdx img scene primitiveIdx colorChannel
 
 updateColorChannel :: Float -> Int -> Float
 updateColorChannel c delta = clamp 0 255 (c*255 + (fromIntegral delta :: Float)) / 255
@@ -141,7 +139,7 @@ updateColor CCB (V3 r g b) delta = V3 r g (updateColorChannel b delta)
 
 editPrimitiveColor :: Int -> EventM Name BDPTRenderState ()
 editPrimitiveColor delta = do
-  (MkBDPTRenderState _ img scene primitiveIdx colorChannel dP) <- get
+  (MkBDPTRenderState _ img scene primitiveIdx colorChannel) <- get
   case primitiveIdx of
     Nothing -> return ()
     Just idx -> do
@@ -165,13 +163,13 @@ d = 0.2
 
 handleEvent :: BrickEvent Name Tick -> EventM Name BDPTRenderState ()
 handleEvent (AppEvent Tick) = do
-  (MkBDPTRenderState sampleIdx img scene primitiveIdx colorChannel dP) <- get
+  (MkBDPTRenderState sampleIdx img scene primitiveIdx colorChannel) <- get
   if sampleIdx >= spp then
     return ()
   else do
     let newImg = Scene.render scene width height sampleIdx
     let accumulatedImg = accumulateImg img newImg sampleIdx
-    put $ MkBDPTRenderState (sampleIdx+1) accumulatedImg scene primitiveIdx colorChannel dP
+    put $ MkBDPTRenderState (sampleIdx+1) accumulatedImg scene primitiveIdx colorChannel
 handleEvent (VtyEvent (V.EvKey V.KEsc        [])) = halt
 handleEvent (VtyEvent (V.EvKey (V.KChar 'r') [])) = updateChannelColor CCR
 handleEvent (VtyEvent (V.EvKey (V.KChar 'g') [])) = updateChannelColor CCG
@@ -179,17 +177,17 @@ handleEvent (VtyEvent (V.EvKey (V.KChar 'b') [])) = updateChannelColor CCB
 handleEvent (VtyEvent (V.EvKey V.KDown       [])) = editPrimitiveColor (-8)
 handleEvent (VtyEvent (V.EvKey V.KUp         [])) = editPrimitiveColor 8
 handleEvent (MouseUp ClickableImage _ (Location (x, y))) = do
-  (MkBDPTRenderState sampleIdx img scene _ colorChannel dP) <- get
+  (MkBDPTRenderState sampleIdx img scene _ colorChannel) <- get
   -- Each "pixel" is made up of 2 chars, so divide x coord by 2
   let coords = (x `div` 2, height-y)
   let primitiveIdx = rayCastPrimitive test2 coords (width, height)
-  put $ MkBDPTRenderState sampleIdx img scene primitiveIdx colorChannel dP
-handleEvent (VtyEvent (V.EvKey (V.KChar 'w') [])) = editPrimitivePosition (V3 0 d 0)
-handleEvent (VtyEvent (V.EvKey (V.KChar 'a') [])) = editPrimitivePosition (V3 (-d) 0 0)
-handleEvent (VtyEvent (V.EvKey (V.KChar 's') [])) = editPrimitivePosition (V3 0 (-d) 0)
-handleEvent (VtyEvent (V.EvKey (V.KChar 'd') [])) = editPrimitivePosition (V3 d 0 0)
-handleEvent (VtyEvent (V.EvKey (V.KChar 'q') [])) = editPrimitivePosition (V3 0 0 d)
-handleEvent (VtyEvent (V.EvKey (V.KChar 'e') [])) = editPrimitivePosition (V3 0 0 (-d))
+  put $ MkBDPTRenderState sampleIdx img scene primitiveIdx colorChannel
+-- handleEvent (VtyEvent (V.EvKey (V.KChar 'w') [])) = `editPrimitivePosition` (V3 0 d 0)
+-- handleEvent (VtyEvent (V.EvKey (V.KChar 'a') [])) = editPrimitivePosition (V3 (-d) 0 0)
+-- handleEvent (VtyEvent (V.EvKey (V.KChar 's') [])) = editPrimitivePosition (V3 0 (-d) 0)
+-- handleEvent (VtyEvent (V.EvKey (V.KChar 'd') [])) = editPrimitivePosition (V3 d 0 0)
+-- handleEvent (VtyEvent (V.EvKey (V.KChar 'q') [])) = editPrimitivePosition (V3 0 0 d)
+-- handleEvent (VtyEvent (V.EvKey (V.KChar 'e') [])) = editPrimitivePosition (V3 0 0 (-d))
 handleEvent _ = return ()
 
 -- The attribute map cannot support 255^3 color combinations, so specify
