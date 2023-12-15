@@ -26,8 +26,6 @@ instance Ord Name where
   ClickableImage < ClickableImage = False
   ClickableImage <= ClickableImage = True
 
-data ColorChannel = CCR | CCG | CCB
-
 type Image = [V3 Float]
 data BDPTRenderState = MkBDPTRenderState {
   _sampleIdx :: Int,
@@ -82,7 +80,7 @@ drawSelectedPrimitive scene idx = vBox $ str ("Selected primitive: " ++ maybe "N
     primitiveInfo = maybe [] drawPrimitiveInfo idx
     drawPrimitiveInfo i =
       let primitive = primitives scene !! i
-          (V3 r g b) = sphere_color primitive
+          (V3 r g b) = primitiveColor primitive
           r' = show (round (r * 255) :: Int)
           g' = show (round (g * 255) :: Int)
           b' = show (round (b * 255) :: Int)
@@ -136,7 +134,6 @@ updateChannelColor colorChannel = do
 updateColorChannel :: Float -> Int -> Float
 updateColorChannel c delta = clamp 0 255 (c*255 + (fromIntegral delta :: Float)) / 255
 
-
 updateColor :: ColorChannel -> V3 Float -> Int -> V3 Float
 updateColor CCR (V3 r g b) delta = V3 (updateColorChannel r delta) g b
 updateColor CCG (V3 r g b) delta = V3 r (updateColorChannel g delta) b
@@ -147,30 +144,11 @@ editPrimitiveColor delta = do
   (MkBDPTRenderState _ img scene primitiveIdx colorChannel dP) <- get
   case primitiveIdx of
     Nothing -> return ()
-    Just idx ->
-      let (Sphere center radius sphere_color) = primitives scene !! idx
-          updatedSphere = Sphere center radius (updateColor colorChannel sphere_color delta)
-          updatedScene = updateSphere scene idx updatedSphere
-      in
-        put $ MkBDPTRenderState 0 img updatedScene primitiveIdx colorChannel dP
-
-editPrimitivePosition :: V3 Float -> EventM Name BDPTRenderState ()
-editPrimitivePosition (V3 dx dy dz) = do
-  (MkBDPTRenderState _ img scene primitiveIdx colorChannel dP) <- get
-  case primitiveIdx of
-    Nothing -> return ()
-    Just idx ->
-      let (Sphere (V3 x y z) radius sphere_color) = primitives scene !! idx
-      in 
-        if radius > 5 then return ()
-        else 
-        let
-          updatedSphere = Sphere (V3 (x+dx) (y+dy) (z+dz)) radius sphere_color
-          updatedScene = updateSphere scene idx updatedSphere
-        in
-        put $ MkBDPTRenderState 0 img updatedScene primitiveIdx colorChannel (V3 0 0 0)
-
-
+    Just idx -> do
+      let prim = primitives scene !! idx
+      let updatePrim = updatePrimitiveColor prim colorChannel delta
+      let updatedScene = updatePrimitive scene idx updatePrim
+      put $ MkBDPTRenderState 0 img updatedScene primitiveIdx colorChannel
 
 accumulateImg :: Image -> Image -> Int -> Image
 accumulateImg old new sampleIdx =

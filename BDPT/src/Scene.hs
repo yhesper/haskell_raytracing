@@ -11,26 +11,32 @@ module Scene
     rayCastPrimitive,
     test2,
     v3Times,
-    updateSphere
+    updatePrimitive,
+    primitiveColor,
+    updatePrimitiveColor,
+    ColorChannel(..),
     ) where
 
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE ExistentialQuantification #-}
+
 
 import Linear.V3
 import Linear.Matrix
 import System.Random
 import Data.Maybe
+import GHC.Base (undefined)
+import Brick (clamp)
 
--- data Vector2 = Vector2 {
---     u :: Float,
---     v :: Float
--- } deriving (Eq, Show)
+data ColorChannel = CCR | CCG | CCB
 
--- data Vector3 = Vector3 {
---     x :: Float,
---     y :: Float,
---     z :: Float
--- } deriving (Eq, Show)
+updateColorChannel :: Float -> Int -> Float
+updateColorChannel c delta = clamp 0 255 (c*255 + (fromIntegral delta :: Float)) / 255
+
+updateColor :: ColorChannel -> V3 Float -> Int -> V3 Float
+updateColor CCR (V3 r g b) delta = V3 (updateColorChannel r delta) g b
+updateColor CCG (V3 r g b) delta = V3 r (updateColorChannel g delta) b
+updateColor CCB (V3 r g b) delta = V3 r g (updateColorChannel b delta)
 
 v3Div :: V3 Float -> Float -> V3 Float
 v3Div (V3 x y z) s = V3 (x / s) (y / s) (z / s)
@@ -78,10 +84,21 @@ instance Ord Intersection where
   compare i1 i2 = compare (t i1) (t i2)
 
 
-class Primitive a where
+class Primitive_ a where
   intersect :: Ray -> a -> Int -> Maybe Intersection
   volume :: a -> Float
   area :: a -> Float
+  primitiveColor :: a -> V3 Float
+  updatePrimitiveColor :: a -> ColorChannel -> Int -> a
+
+data Primitive = forall a. Primitive_ a => Primitive a
+
+instance Primitive_ Primitive where
+  intersect r (Primitive p) i = intersect r p i
+  volume (Primitive p) = volume p
+  area (Primitive p) = area p
+  primitiveColor (Primitive p) = primitiveColor p
+  updatePrimitiveColor (Primitive p) c d = Primitive (updatePrimitiveColor p c d)
 
 data Sphere = Sphere {
     center :: V3 Float,
@@ -89,7 +106,7 @@ data Sphere = Sphere {
     sphere_color  :: V3 Float
 } deriving (Eq, Show)
 
-instance Primitive Sphere where
+instance Primitive_ Sphere where
   intersect r s i =
     let
       l = (center s) - (origin r)
@@ -97,7 +114,7 @@ instance Primitive Sphere where
       d2 = (l `v3Dot` l) - (tca * tca)
       r2 = (radius s) * (radius s)
     in
-      if (d2 <= r2) && not (tca < 0)then
+      if (d2 <= r2) then -- && not (tca < 0)then
         let
           thc = sqrt (r2 - d2)
           t0 = tca - thc
@@ -117,6 +134,8 @@ instance Primitive Sphere where
         Nothing
   volume s = 4/3 * pi * (radius s) * (radius s) * (radius s)
   area s = 4 * pi * (radius s) * (radius s)
+  primitiveColor s = sphere_color s
+  updatePrimitiveColor s chan delta = Sphere (center s) (radius s) (updateColor chan (sphere_color s) delta)
 
 data Triangle = Triangle {
     v1 :: V3 Float,
@@ -125,6 +144,51 @@ data Triangle = Triangle {
     triangle_color :: V3 Float
 } deriving (Eq, Show)
 
+instance Primitive_ Triangle where 
+  intersect r t idx =
+    let
+      (V3 v1x v1y v1z) = (v1 t)
+      (V3 v2x v2y v2z) = (v2 t)
+      (V3 v3x v3y v3z) = (v3 t)
+      (V3 rdx rdy rdz) = (direction r)
+      (V3 rox roy roz) = (origin r)
+      a = v1x - v2x
+      b = v1y - v2y
+      c = v1z - v2z
+      d = v1x - v3x
+      e = v1y - v3y
+      f = v1z - v3z
+      g = rdx
+      h = rdy
+      i = rdz
+      j = v1x - rox
+      k = v1y - roy
+      l = v1z - roz
+      eihf = e * i - h * f
+      gfdi = g * f - d * i
+      dheg = d * h - e * g
+      denom = a * eihf + b * gfdi + c * dheg
+      beta = (j * eihf + k * gfdi + l * dheg) / denom
+      akjb = a * k - j * b
+      jcal = j * c - a * l
+      blkc = b * l - k * c
+      gamma = (i * akjb + h * jcal + g * blkc) / denom
+      intersect_t = -(f * akjb + e * jcal + d * blkc) / denom
+      normal = v3Normalize (v3Cross (v2 t - v1 t) (v3 t - v1 t))
+    in
+      if beta <= 0.0 || beta >= 1.0 || gamma <= 0.0 || beta + gamma >= 1.0 || intersect_t < 0.0 || intersect_t > max_t r then
+        Nothing
+      else
+        Just Intersection {
+          t = intersect_t,
+          prim_idx = idx,
+          normal = if v3Dot normal (direction r) > 0 then v3Times normal (-1) else normal,
+          color = triangle_color t
+        }
+  volume t = undefined
+  area t = undefined
+  primitiveColor t = triangle_color t
+  updatePrimitiveColor t chan delta = Triangle (v1 t) (v2 t) (v3 t) (updateColor chan (triangle_color t) delta)
 
 data Mesh = Mesh {
     vertices :: [V3 Float],
@@ -147,19 +211,37 @@ data PointLight = PointLight
   , lightIntensity :: Float  -- Intensity of the light
   } deriving (Show)
 
-
 data Scene = Scene {
-    primitives :: [Sphere]
+    primitives :: [Primitive]
     -- light     ::  AreaLight
-} deriving (Show)
+}
 -- al = AreaLight (V3 0 (sphere_y+5) 0) (V3 0 (-1) 0) (V3 1 1 1) 1 1
 
 
 sphere_y :: Float
 sphere_y = -1.8
+-- test2 :: Scene
 test2 :: Scene
--- test2 = Scene [bottom, backWall, leftWall, rightWall, top, area_light, Sphere (V3 1 (sphere_y+1) 0) 1 (V3 1 0 0), Sphere (V3 0 sphere_y 0) 1 (V3 0 1 0), Sphere (V3 2 sphere_y 0) 1 (V3 0 0 1)] al
-test2 = Scene [bottom, backWall, leftWall, rightWall, top, Sphere (V3 1 (sphere_y+1) 0) 1 (V3 1 0 0), Sphere (V3 0 sphere_y 0) 1 (V3 0 1 0), Sphere (V3 2 sphere_y 0) 1 (V3 0 0 1)]
+-- pps = [Primitive backWallTriangle0, Primitive backWallTriangle1, Primitive topWallTriangle0, Primitive topWallTriangle1, Primitive botWallTriangle0, Primitive botWallTriangle1, Primitive leftWallTriangle0, Primitive leftWallTriangle1, Primitive rightWallTriangle0, Primitive rightWallTriangle1,Primitive (Sphere (V3 1 (sphere_y+1) 0) 1 (V3 1 0 0)), Primitive (Sphere (V3 0 sphere_y 0) 1 (V3 0 1 0)), Primitive (Sphere (V3 2 sphere_y 0) 1 (V3 0 0 1))]
+pps = [Primitive backWallTriangle0, Primitive backWallTriangle1, Primitive topWallTriangle0, Primitive topWallTriangle1, Primitive botWallTriangle0, Primitive botWallTriangle1, Primitive leftWallTriangle0, Primitive leftWallTriangle1, Primitive rightWallTriangle0, Primitive rightWallTriangle1,Primitive (Sphere (V3 1 (sphere_y+1) 0) 1 (V3 1 0 0))]
+test2 = Scene pps
+diffuseWhiteColor = V3 0.25 0.25 0.25
+diffuseBlueColor = V3 0 0 0.75
+diffuseRedColor = V3 0.75 0 0
+backWallTriangle0 = Triangle (V3 (10) 10 (-4)) (V3 (-10) 10 (-4)) (V3 (-10) (-10) (-4)) diffuseWhiteColor
+backWallTriangle1 = Triangle (V3 (10) 12 (-4)) (V3 (-10) (-8) (-4)) (V3 10 (-8) (-4)) diffuseWhiteColor
+topWallTriangle0 = Triangle  (V3 (10) 4 (-4)) (V3 (-10) 4 (-4)) (V3 10 4 8) diffuseWhiteColor
+topWallTriangle1 = Triangle  (V3 (10) 4 (-4)) (V3 (-10) 4 (-4)) (V3 (-10) 4 8) diffuseWhiteColor
+botWallTriangle0 = Triangle  (V3 (10) (-4) (-4)) (V3 (-10) (-4) (-4)) (V3 10 (-4) 8) diffuseWhiteColor
+botWallTriangle1 = Triangle  (V3 (10) (-4) (-4)) (V3 (-10) (-4) (-4)) (V3 (-10) (-4) 8) diffuseWhiteColor
+
+rightWallTriangle0 = Triangle  (V3 (4) 10 (-10)) (V3 (4) (-10) (-10)) (V3 4 (10) (10)) diffuseRedColor
+rightWallTriangle1 = Triangle  (V3 4 (12) (10)) (V3 (4) (-8) (-10)) (V3 4 (-8) (10)) diffuseRedColor
+
+leftWallTriangle0 = Triangle  (V3 (-4) 10 (-10)) (V3 (-4) (-10) (-10)) (V3 (-4) (10) (10)) diffuseBlueColor
+leftWallTriangle1 = Triangle  (V3 (-4) (12) (10)) (V3 (-4) (-8) (-10)) (V3 (-4) (-8) (10)) diffuseBlueColor
+
+
 rightWall = Sphere (V3 (1e5) 50 (-2e5)) 1.3e5 (V3 0.25 0.25 0.75)
 leftWall = Sphere (V3 (-1e5) 50 (-2e5)) 1.3e5 (V3 0.75 0.25 0.25)
 backWall = Sphere (V3 0 00 (-2e5)) 1.3e5 (V3 0.75 0.75 0.75)
@@ -169,8 +251,8 @@ area_light = Sphere (V3 0 (sphere_y+5) 0) 0.5 (V3 1 1 1)
 
 
 
-updateSphere :: Scene -> Int -> Sphere -> Scene
-updateSphere s prim_id new_prim =
+updatePrimitive :: Scene -> Int -> Primitive -> Scene
+updatePrimitive s prim_id new_prim =
   let
     (left, right) = splitAt prim_id (primitives s)
   in
@@ -235,6 +317,8 @@ raygen (camera_center, pixel00_loc, (pixel_delta_u, pixel_delta_v)) x y =
   in
     ray
 
+maxDepth = 2
+
 render :: Scene -> Int -> Int -> Int -> [V3 Float]
 render s w h sampleIdx =
   let cameraFrame = setupCameraFrame w h
@@ -243,8 +327,8 @@ render s w h sampleIdx =
       y <- [0..h-1]
       x <- [0..w-1]
       let ray = raygen cameraFrame x y
-      let seed = sampleIdx * 32 * w * h * 3 + y * w * 3 + x * 3
-      return $ traceRay ray s 2 seed
+      let seed = sampleIdx * 32 * w * h * maxDepth + y * w * maxDepth + x * maxDepth
+      return $ traceRay ray s (maxDepth - 1) seed
 
 calculatePointLightIntensity :: PointLight -> V3 Float -> Float
 calculatePointLightIntensity light point =
@@ -259,16 +343,18 @@ traceRay r s d seed =
       let hitPoint = origin r + (direction r `v3Times` t intersection)
       let hitNormal = normal intersection
 
-      let brdf = hitColor -- `v3Times` max (hitNormal `v3Dot` lightDirection) 0.0
+      let brdf = hitColor
       if d == 0 then do
-        let light = PointLight (V3 0 (sphere_y + 5) 0) (V3 1 1 1) 100
+        let light = PointLight (V3 0 3 2) (V3 1 1 1) 10
         let lightDirection = v3Normalize (lightPosition light - hitPoint)
         let lightDistance = dist (lightPosition light) hitPoint
         let shadowRay = Ray (hitPoint + lightDirection `v3Times` 1e-3) lightDirection lightDistance
+        -- if False then
+        --   V3 0 0 0
         if anyHit shadowRay s then
           V3 0 0 0
         else
-          brdf * lightColor light `v3Times` lightIntensity light
+          brdf  * lightColor light `v3Times` lightIntensity light
       else do
         let rm = rotationMatrix hitNormal
         let newDirection = randomDirection $ mkStdGen (seed + d)
