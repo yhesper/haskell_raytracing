@@ -201,12 +201,10 @@ handleEvent (MouseUp ClickableImage _ (Location (x, y))) = do
   let coords = (x `div` 2, height-y-1)
   let primitiveIdx = rayCastPrimitive scene coords (width, height)
   put $ MkBDPTRenderState sampleIdx img scene (Just coords) primitiveIdx colorChannel dp
-d :: Float
-d = 0.2
-handleEvent (VtyEvent (V.EvKey (V.KChar 'w') [])) = editPrimitivePosition (V2 0 d)
-handleEvent (VtyEvent (V.EvKey (V.KChar 'a') [])) = editPrimitivePosition (V2 (-d) 0)
-handleEvent (VtyEvent (V.EvKey (V.KChar 's') [])) = editPrimitivePosition (V2 0 (-d))
-handleEvent (VtyEvent (V.EvKey (V.KChar 'd') [])) = editPrimitivePosition (V2 d 0)
+handleEvent (VtyEvent (V.EvKey (V.KChar 'w') [])) = editPrimitivePosition (V2 0 0.2)
+handleEvent (VtyEvent (V.EvKey (V.KChar 'a') [])) = editPrimitivePosition (V2 (-0.2) 0)
+handleEvent (VtyEvent (V.EvKey (V.KChar 's') [])) = editPrimitivePosition (V2 0 (-0.2))
+handleEvent (VtyEvent (V.EvKey (V.KChar 'd') [])) = editPrimitivePosition (V2 0.2 0)
 handleEvent _ = return ()
 
 -- The attribute map cannot support 255^3 color combinations, so specify

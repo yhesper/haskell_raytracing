@@ -5,7 +5,6 @@ module Scene
     , Primitive(..)
     , Sphere(..)
     , Triangle(..)
-    , Mesh(..)
     , Scene(..),
     render,
     rayCastPrimitive,
