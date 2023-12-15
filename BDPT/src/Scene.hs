@@ -14,6 +14,7 @@ module Scene
     primitiveColor,
     updatePrimitiveColor,
     updatePrimitivePosition,
+    intersect,
     ColorChannel(..),
     ) where
 
