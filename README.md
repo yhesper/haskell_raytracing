@@ -28,8 +28,21 @@ The core logic is implemented in:
 * [BDPT/src/Lib.hs](/BDPT/src/Lib.hs): UI, controls, state, event loop
 * [BDPT/src/Scene.hs](/BDPT/src/Scene.hs): Scene description, scene editing, rendering
 
-## Team Members
+## Acknowledgements
+1. We referenced small code snippets from the following sources:
+  * https://github.com/samtay/tetris/blob/master/src/UI/Game.hs: Used the code snippet to add a custom main which sends ticks to the event loop in brick
+  * https://github.com/shajenM/projects/blob/master/towerHanoi/src/TowerAnimation.hs: Referenced how to use list comprehension (from `drawGrid` to build a grid of pixels)
+  * https://github.com/jtdaugherty/brick/blob/master/docs/guide.rst: Setting up brick
 
+Ray tracing is a standard algorithm, and we also referenced the text and non-haskell code at:
+  * https://raytracing.github.io/ and https://www.pbr-book.org/: ray tracing algorithm
+  * https://www.scratchapixel.com/lessons/3d-basic-rendering/minimal-ray-tracer-rendering-simple-shapes/ray-sphere-intersection.html: Ray sphere intersection algorithm
+
+We also used the testing related files from the class assignments
+
+2. Otherwise, we implemented the rest of the project ourselves, including rendering arbitrary rgb pixels in brick, rendering state, setting up the scene, deriving majority of the ray tracing/light transport math, adding object position and color editing.
+
+## Team Members
 - Hesper Yin
 - Wesley Chang
 - Xuanda Yang
